@@ -1,0 +1,664 @@
+import React, { useState } from 'react';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import './index.css';
+
+const WillGenerator = () => {
+  const [formData, setFormData] = useState({
+    testatorName: '',
+    occupation: '',
+    address: '',
+    parish: '',
+    executor1: { name: '', relationship: '', occupation: '', address: '', parish: '' },
+    executor2: { name: '', relationship: '', occupation: '', address: '', parish: '' },
+    funeralDetails: '',
+    clothingDetails: '',
+    remainsDetails: '',
+    songs: ['', ''],
+    properties: [
+      { address: '', parish: '', volume: '', folio: '', beneficiary: '' },
+      { address: '', parish: '', volume: '', folio: '', beneficiary: '' },
+      { address: '', parish: '', volume: '', folio: '', beneficiary: '' },
+    ],
+    shares: [
+      { company: '', country: '', exchange: '', accountNumber: '', beneficiary: '' },
+      { company: '', country: '', exchange: '', accountNumber: '', beneficiary: '' },
+    ],
+    insurance: [
+      { policyNumber: '', company: '', address: '', country: '', beneficiary: '' },
+      { policyNumber: '', company: '', address: '', country: '', beneficiary: '' },
+    ],
+    bankAccounts: [
+      { accountNumber: '', bank: '', address: '', country: '', beneficiary: '' },
+      { accountNumber: '', bank: '', address: '', country: '', beneficiary: '' },
+      { accountNumber: '', bank: '', address: '', country: '', beneficiary: '' },
+    ],
+    vehicles: [
+      { color: '', make: '', model: '', licensePlate: '', engineNumber: '', chassisNumber: '', beneficiary: '' },
+      { color: '', make: '', model: '', licensePlate: '', engineNumber: '', chassisNumber: '', beneficiary: '' },
+      { color: '', make: '', model: '', licensePlate: '', engineNumber: '', chassisNumber: '', beneficiary: '' },
+    ],
+    unpaidSalary: { employer: '', employerAddress: '', beneficiary: '' },
+    nhtContributions: { nhtNumber: '', taxNumber: '', beneficiary: '' },
+    jewellery: { description: '', beneficiary: '' },
+    furniture: { beneficiary: '' },
+    paintings: { beneficiary: '' },
+    firearm: { serialNumber: '', licenseNumber: '', beneficiary: '' },
+    residualEstate: { beneficiaries: '' },
+    signatureDate: '',
+    witnesses: [
+      { name: '', address: '', occupation: '' },
+      { name: '', address: '', occupation: '' },
+    ],
+  });
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 10;
+
+  const handleInputChange = (e, section, field, index = null) => {
+    const { value } = e.target;
+    setFormData(prevData => {
+      if (index !== null) {
+        const newArray = [...prevData[section]];
+        newArray[index] = { ...newArray[index], [field]: value };
+        return { ...prevData, [section]: newArray };
+      } else if (section) {
+        return {
+          ...prevData,
+          [section]: { ...prevData[section], [field]: value }
+        };
+      } else {
+        return { ...prevData, [field]: value };
+      }
+    });
+  };
+
+
+ 
+
+  const generatePDF = async (formData) => {
+    const pdfDoc = await PDFDocument.create();
+    const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const timesBoldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    
+    const addPage = () => {
+      const page = pdfDoc.addPage([612, 792]); // US Letter size
+      return { page, width: 612, height: 792 };
+    };
+  
+    let { page, width, height } = addPage();
+    let yOffset = height - 20;
+    let pageCount = 1;
+  
+    const drawText = (text, { fontSize = 12, font = timesRomanFont, color = rgb(0, 0, 0), align = 'left', isUserInput = false, xOffset = 50 }) => {
+      const safeText = text != null ? String(text) : '';
+      page.drawText(safeText, {
+        x: xOffset,
+        y: yOffset,
+        size: fontSize,
+        font: font,
+        color: isUserInput ? rgb(0.8, 0, 0) : color,
+      });
+      yOffset -= fontSize + 4;
+    };
+  
+    const addNewPageIfNeeded = (neededSpace) => {
+      if (yOffset - neededSpace < 50) {
+        ({ page, width, height } = addPage());
+        pageCount++;
+        yOffset = height - 20;
+        
+        drawText(`Page - ${pageCount} - of 5`, { fontSize: 12, xOffset: 50 });
+        drawText('(Please insert Testator\'s signature here)', { fontSize: 10, xOffset: 50 });
+        drawText('(Please insert Witness #1\'s signature here)', { fontSize: 10, xOffset: 250 });
+        drawText('(Please insert Witness #2\'s signature here)', { fontSize: 10, xOffset: 450 });
+        yOffset -= 20;
+      }
+    };
+  
+    // Page 1
+    drawText(`Page - ${pageCount} - of 5`, { fontSize: 12 });
+    drawText('(Please insert Testator\'s signature here)', { fontSize: 10, xOffset: 50 });
+    drawText('(Please insert Witness #1\'s signature here)', { fontSize: 10, xOffset: 250 });
+    drawText('(Please insert Witness #2\'s signature here)', { fontSize: 10, xOffset: 450 });
+    yOffset -= 20;
+  
+    drawText('LAST WILL AND TESTAMENT', { fontSize: 14, font: timesBoldFont, align: 'center' });
+    yOffset -= 10;
+  
+    drawText('THIS IS THE LAST WILL AND TESTAMENT of me', { fontSize: 12 });
+    drawText(formData.testatorName || '[INSERT NAME]', { fontSize: 12, isUserInput: true });
+    drawText(', a', { fontSize: 12 });
+    drawText(formData.occupation || '[OCCUPATION]', { fontSize: 12, isUserInput: true });
+    drawText('whose address is', { fontSize: 12 });
+    drawText(formData.address || '[INSERT ADDRESS]', { fontSize: 12, isUserInput: true });
+    drawText('in the parish of', { fontSize: 12 });
+    drawText(formData.parish || '[INSERT PARISH]', { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  
+    drawText('1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND', { fontSize: 12 });
+    drawText('DECLARE this to be my Last Will and Testament.', { fontSize: 12 });
+    yOffset -= 10;
+  
+    drawText('2. APPOINTMENT OF EXECUTORS', { fontSize: 12, font: timesBoldFont });
+    drawText('I HEREBY APPOINT', { fontSize: 12 });
+    drawText(formData.executor1?.name || '[INSERT NAME OF EXECUTOR 1]', { fontSize: 12, isUserInput: true });
+    drawText(', my', { fontSize: 12 });
+    drawText(formData.executor1?.relationship || '[please insert relationship of person]', { fontSize: 12, isUserInput: true });
+    drawText(formData.executor1?.occupation || '[please insert occupation]', { fontSize: 12, isUserInput: true });
+    drawText(', of', { fontSize: 12 });
+    drawText(formData.executor1?.address || '[INSERT ADDRESS]', { fontSize: 12, isUserInput: true });
+    drawText(', in the parish of', { fontSize: 12 });
+    drawText(formData.executor1?.parish || '[INSERT PARISH]', { fontSize: 12, isUserInput: true });
+    drawText('AND', { fontSize: 12 });
+    drawText(formData.executor2?.name || '[INSERT NAME OF EXECUTOR 2]', { fontSize: 12, isUserInput: true });
+    drawText(', my', { fontSize: 12 });
+    drawText(formData.executor2?.relationship || '[please insert relationship of person]', { fontSize: 12, isUserInput: true });
+    drawText(formData.executor2?.occupation || '[please insert occupation]', { fontSize: 12, isUserInput: true });
+    drawText(', of', { fontSize: 12 });
+    drawText(formData.executor2?.address || '[INSERT ADDRESS]', { fontSize: 12, isUserInput: true });
+    drawText(', in the parish of', { fontSize: 12 });
+    drawText(formData.executor2?.parish || '[INSERT PARISH]', { fontSize: 12, isUserInput: true });
+    drawText('to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', { fontSize: 12 });
+    yOffset -= 10;
+  
+    drawText('3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral,', { fontSize: 12 });
+    drawText('tombing and testamentary expenses.', { fontSize: 12 });
+    yOffset -= 10;
+  
+    drawText('4. FUNERAL AND BURIAL ARRANGEMENTS', { fontSize: 12, font: timesBoldFont });
+    drawText('I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that', { fontSize: 12 });
+    drawText('my funeral expenses and any debts be paid out of my estate, along with the following:', { fontSize: 12 });
+    drawText('a. That I be', { fontSize: 12 });
+    drawText(formData.funeralDetails || '[specify any specific details that you would like to occur at your funeral]', { fontSize: 12, isUserInput: true });
+    drawText('b. That be clothed in', { fontSize: 12 });
+    drawText(formData.clothingDetails || '[ please specify color and type]', { fontSize: 12, isUserInput: true });
+    drawText('c. That my remains be placed', { fontSize: 12 });
+    drawText(formData.remainsDetails || '[ please specify how and where you would like your remains to be placed]', { fontSize: 12, isUserInput: true });
+    drawText('d. That the following songs be included in my funeral programme', { fontSize: 12 });
+    drawText('e. That the following song is played at my wedding-', { fontSize: 12 });
+    (formData.songs || ['[ please insert name of song1]', '[ please insert name of song2]', '[ please insert name of song3]']).forEach((song, index) => {
+      drawText(`- ${song}`, { fontSize: 12, isUserInput: true });
+    });
+  
+
+  // Page 2
+  addNewPageIfNeeded(500);
+
+  drawText('5. I GIVE DEVISE AND BEQUEATH:', { fontSize: 12, font: timesBoldFont });
+  drawText('a. PROPERTY', { fontSize: 12, font: timesBoldFont });
+  formData.properties.forEach((property, index) => {
+    drawText(`${index === 0 ? 'i. 1st' : index === 1 ? 'ii. 2nd' : 'iii. 3rd'} Property- situate at`, { fontSize: 12 });
+    drawText(property.address, { fontSize: 12, isUserInput: true });
+    drawText(', in the parish of', { fontSize: 12 });
+    drawText(property.parish, { fontSize: 12, isUserInput: true });
+    drawText('registered at', { fontSize: 12 });
+    drawText(`${property.volume} and ${property.folio}`, { fontSize: 12, isUserInput: true });
+    drawText('of the Register Book of', { fontSize: 12 });
+    drawText('Titles to', { fontSize: 12 });
+    drawText(property.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  drawText('b. SHARES AND STOCKS', { fontSize: 12, font: timesBoldFont });
+  formData.shares.forEach((share, index) => {
+    drawText(`${index + 1}. Shares in`, { fontSize: 12 });
+    drawText(share.company, { fontSize: 12, isUserInput: true });
+    drawText('held in', { fontSize: 12 });
+    drawText(share.country, { fontSize: 12, isUserInput: true });
+    drawText('at', { fontSize: 12 });
+    drawText(share.exchange, { fontSize: 12, isUserInput: true });
+    drawText('in account numbered', { fontSize: 12 });
+    drawText(share.accountNumber, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(share.beneficiary, { fontSize: 12, isUserInput: true });
+    drawText('of', { fontSize: 12 });
+    drawText(share.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  drawText('c. INSURANCE', { fontSize: 12, font: timesBoldFont });
+  formData.insurance.forEach((policy, index) => {
+    drawText(`${index === 0 ? 'i' : 'j'}. Proceeds of insurance policy numbered`, { fontSize: 12 });
+    drawText(policy.policyNumber, { fontSize: 12, isUserInput: true });
+    drawText(', held at', { fontSize: 12 });
+    drawText(policy.company, { fontSize: 12, isUserInput: true });
+    drawText('located at', { fontSize: 12 });
+    drawText(`${policy.address}, ${policy.country}`, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(policy.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  // Page 3
+  addNewPageIfNeeded(500);
+
+  drawText('d. BANK ACCOUNTS', { fontSize: 12, font: timesBoldFont });
+  formData.bankAccounts.forEach((account, index) => {
+    drawText(`${index + 1}. Proceeds of bank account numbered`, { fontSize: 12 });
+    drawText(account.accountNumber, { fontSize: 12, isUserInput: true });
+    drawText(', held at', { fontSize: 12 });
+    drawText(account.bank, { fontSize: 12, isUserInput: true });
+    drawText('located at', { fontSize: 12 });
+    drawText(`${account.address}, ${account.country}`, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(account.beneficiary, { fontSize: 12, isUserInput: true });
+    drawText('of', { fontSize: 12 });
+    drawText(account.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  drawText('e. MOTOR VEHICLE', { fontSize: 12, font: timesBoldFont });
+  formData.vehicles.forEach((vehicle, index) => {
+    drawText(`${index + 1}.`, { fontSize: 12 });
+    drawText(`${vehicle.color} ${vehicle.make} ${vehicle.model}`, { fontSize: 12, isUserInput: true });
+    drawText('Motor vehicle bearing', { fontSize: 12 });
+    drawText('Licence plate number', { fontSize: 12 });
+    drawText(vehicle.licensePlate, { fontSize: 12, isUserInput: true });
+    drawText('and engine and chassis numbers', { fontSize: 12 });
+    drawText(vehicle.engineNumber, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(vehicle.beneficiary, { fontSize: 12, isUserInput: true });
+    drawText('of', { fontSize: 12 });
+    drawText(vehicle.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  drawText('f. UNPAID SALARY AND/EMOLUMENTS', { fontSize: 12, font: timesBoldFont });
+  drawText('Unpaid salary and/or emoluments with my employer,', { fontSize: 12 });
+  drawText(formData.unpaidSalary.employer, { fontSize: 12, isUserInput: true });
+  drawText('located at', { fontSize: 12 });
+  drawText(formData.unpaidSalary.employerAddress, { fontSize: 12, isUserInput: true });
+  drawText('to', { fontSize: 12 });
+  drawText(formData.unpaidSalary.beneficiary, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.unpaidSalary.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+
+  // Page 4
+  addNewPageIfNeeded(500);
+
+  drawText('g. NATIONAL HOUSING TRUST(NHT) CONTRIBUTIONS', { fontSize: 12, font: timesBoldFont });
+  drawText('Refund of National Housing Trust Contributions', { fontSize: 12 });
+  drawText(`(${formData.nhtContributions.nhtNumber} and`, { fontSize: 12, isUserInput: true });
+  drawText('Tax Registration Number', { fontSize: 12 });
+  drawText(formData.nhtContributions.taxNumber, { fontSize: 12, isUserInput: true });
+  drawText(') to', { fontSize: 12 });
+  drawText(formData.nhtContributions.beneficiary, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.nhtContributions.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('h. JEWELLERY', { fontSize: 12, font: timesBoldFont });
+  drawText(formData.jewellery.description, { fontSize: 12, isUserInput: true });
+  drawText('described as my Jewellery to', { fontSize: 12 });
+  drawText(formData.jewellery.beneficiary, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.jewellery.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('i. FURNITURE', { fontSize: 12, font: timesBoldFont });
+  drawText('Furniture to', { fontSize: 12 });
+  drawText(formData.furniture.beneficiary, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.furniture.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('j. PAINTINGS', { fontSize: 12, font: timesBoldFont });
+  drawText('Paintings to', { fontSize: 12 });
+  drawText(formData.paintings.beneficiary, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+drawText(formData.paintings.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('k. FIREARM', { fontSize: 12, font: timesBoldFont });
+  drawText('Firearm bearing serial and firearm licence numbers', { fontSize: 12 });
+  drawText(formData.firearm.serialNumber, { fontSize: 12, isUserInput: true });
+  drawText('to', { fontSize: 12 });
+  drawText(formData.firearm.beneficiary, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.firearm.beneficiaryAddress, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('6. RESIDUAL ESTATE', { fontSize: 12, font: timesBoldFont });
+  drawText('I give, devise and bequeath all the rest, residue and remainder of my estate, including any proceeds', { fontSize: 12 });
+  drawText('from the sale of assets to', { fontSize: 12 });
+  drawText(formData.residualEstate.beneficiaries, { fontSize: 12, isUserInput: true });
+  drawText('in equal shares.', { fontSize: 12 });
+  yOffset -= 20;
+
+  drawText('IN WITNESS WHEREOF I have hereunto set my hand and seal this', { fontSize: 12 });
+  drawText(formData.signatureDate, { fontSize: 12, isUserInput: true });
+  yOffset -= 30;
+  drawText('____________________________', { fontSize: 12 });
+  drawText('(Testator to sign here)', { fontSize: 10 });
+  yOffset -= 20;
+
+  drawText('SIGNED by the Testator the said', { fontSize: 12 });
+  drawText(formData.testatorName, { fontSize: 12, isUserInput: true });
+  drawText(', a', { fontSize: 12 });
+  drawText(formData.occupation, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.address, { fontSize: 12, isUserInput: true });
+  drawText(', in', { fontSize: 12 });
+  drawText('the parish of', { fontSize: 12 });
+  drawText(formData.parish, { fontSize: 12, isUserInput: true });
+  drawText(', as my Last Will and Testament I declare that I have signed and', { fontSize: 12 });
+
+  // Page 5
+  addNewPageIfNeeded(300);
+
+  drawText('executed this Last Will and Testament willingly and in the presence of the following witnesses, who are', { fontSize: 12 });
+  drawText('present at the same time and who have signed as witnesses in my presence:', { fontSize: 12 });
+  yOffset -= 20;
+
+  drawText('WITNESSES', { fontSize: 14, font: timesBoldFont });
+  yOffset -= 10;
+
+  // First witness
+  drawText('Name and', { fontSize: 12 });
+  drawText('Signature:', { fontSize: 12 });
+  drawText('____________________________', { fontSize: 12 });
+  yOffset -= 10;
+  drawText('Address:', { fontSize: 12 });
+  drawText(formData.witnesses[0].address, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+  drawText('Occupation:', { fontSize: 12 });
+  drawText(formData.witnesses[0].occupation, { fontSize: 12, isUserInput: true });
+  yOffset -= 20;
+
+  // Second witness
+  drawText('Name and', { fontSize: 12 });
+  drawText('Signature:', { fontSize: 12 });
+  drawText('____________________________', { fontSize: 12 });
+  yOffset -= 10;
+  drawText('Address:', { fontSize: 12 });
+  drawText(formData.witnesses[1].address, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+  drawText('Occupation:', { fontSize: 12 });
+  drawText(formData.witnesses[1].occupation, { fontSize: 12, isUserInput: true });
+  yOffset -= 20;
+
+  drawText('Witnesses', { fontSize: 12 });
+  drawText('to sign', { fontSize: 12 });
+  drawText('here.', { fontSize: 12 });
+
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
+};
+
+
+const handleGeneratePDF = async () => {
+  try {
+    console.log('Generating PDF with formData:', formData);
+    const pdfBytes = await generatePDF(formData);
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'last_will_and_testament.pdf';
+    link.click();
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    // Optionally, display an error message to the user
+    alert('An error occurred while generating the PDF. Please try again.');
+  }
+};
+
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    generatePDF();
+  };
+
+  const renderInput = (section, field, label, index = null) => (
+    <div className="mb-4" key={`${section}-${field}-${index}`}>
+      <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor={`${section}-${field}-${index}`}>
+        {label}
+      </label>
+      <input
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+        id={`${section}-${field}-${index}`}
+        type="text"
+        value={index !== null ? formData[section][index][field] : (section ? formData[section][field] : formData[field])}
+        onChange={(e) => handleInputChange(e, section, field, index)}
+      />
+    </div>
+  );
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Testator Information</h2>
+            {renderInput(null, 'testatorName', 'Full Name')}
+            {renderInput(null, 'occupation', 'Occupation')}
+            {renderInput(null, 'address', 'Address')}
+            {renderInput(null, 'parish', 'Parish')}
+          </section>
+        );
+      case 2:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Executors</h2>
+            {['executor1', 'executor2'].map((executor, index) => (
+              <div key={executor} className="mb-4">
+                <h3 className="text-xl font-semibold mb-2">Executor {index + 1}</h3>
+                {renderInput(executor, 'name', 'Name')}
+                {renderInput(executor, 'relationship', 'Relationship')}
+                {renderInput(executor, 'occupation', 'Occupation')}
+                {renderInput(executor, 'address', 'Address')}
+                {renderInput(executor, 'parish', 'Parish')}
+              </div>
+            ))}
+          </section>
+        );
+      case 3:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Funeral Arrangements</h2>
+            {renderInput(null, 'funeralDetails', 'Funeral Details')}
+            {renderInput(null, 'clothingDetails', 'Clothing Details')}
+            {renderInput(null, 'remainsDetails', 'Remains Placement')}
+            <h3 className="text-xl font-semibold mb-2">Songs</h3>
+            {formData.songs.map((_, index) => (
+              renderInput('songs', index, `Song ${index + 1}`, index)
+            ))}
+          </section>
+        );
+      case 4:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Properties</h2>
+            {formData.properties.map((_, index) => (
+              <div key={`property-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Property {index + 1}</h3>
+                {renderInput('properties', 'address', 'Address', index)}
+                {renderInput('properties', 'parish', 'Parish', index)}
+                {renderInput('properties', 'volume', 'Volume', index)}
+                {renderInput('properties', 'folio', 'Folio', index)}
+                {renderInput('properties', 'beneficiary', 'Beneficiary', index)}
+              </div>
+            ))}
+          </section>
+        );
+      case 5:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Shares and Stocks</h2>
+            {formData.shares.map((_, index) => (
+              <div key={`share-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Share {index + 1}</h3>
+                {renderInput('shares', 'company', 'Company', index)}
+                {renderInput('shares', 'country', 'Country', index)}
+                {renderInput('shares', 'exchange', 'Exchange', index)}
+                {renderInput('shares', 'accountNumber', 'Account Number', index)}
+                {renderInput('shares', 'beneficiary', 'Beneficiary', index)}
+              </div>
+            ))}
+          </section>
+        );
+      case 6:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Insurance</h2>
+            {formData.insurance.map((_, index) => (
+              <div key={`insurance-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Policy {index + 1}</h3>
+                {renderInput('insurance', 'policyNumber', 'Policy Number', index)}
+                {renderInput('insurance', 'company', 'Company', index)}
+                {renderInput('insurance', 'address', 'Address', index)}
+                {renderInput('insurance', 'country', 'Country', index)}
+                {renderInput('insurance', 'beneficiary', 'Beneficiary', index)}
+              </div>
+            ))}
+          </section>
+        );
+      case 7:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Bank Accounts</h2>
+            {formData.bankAccounts.map((_, index) => (
+              <div key={`bank-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Account {index + 1}</h3>
+                {renderInput('bankAccounts', 'accountNumber', 'Account Number', index)}
+                {renderInput('bankAccounts', 'bank', 'Bank Name', index)}
+                {renderInput('bankAccounts', 'address', 'Address', index)}
+                {renderInput('bankAccounts', 'country', 'Country', index)}
+                {renderInput('bankAccounts', 'beneficiary', 'Beneficiary', index)}
+              </div>
+            ))}
+          </section>
+        );
+      case 8:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Motor Vehicles</h2>
+            {formData.vehicles.map((_, index) => (
+              <div key={`vehicle-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Vehicle {index + 1}</h3>
+                {renderInput('vehicles', 'color', 'Color', index)}
+                {renderInput('vehicles', 'make', 'Make', index)}
+                {renderInput('vehicles', 'model', 'Model', index)}
+                {renderInput('vehicles', 'licensePlate', 'License Plate', index)}
+                {renderInput('vehicles', 'engineNumber', 'Engine Number', index)}
+                {renderInput('vehicles', 'chassisNumber', 'Chassis Number', index)}
+                {renderInput('vehicles', 'beneficiary', 'Beneficiary', index)}
+              </div>
+            ))}
+          </section>
+        );
+      case 9:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Other Bequests</h2>
+            <h3 className="text-xl font-semibold mb-2">Unpaid Salary and Emoluments</h3>
+            {renderInput('unpaidSalary', 'employer', 'Employer')}
+            {renderInput('unpaidSalary', 'employerAddress', 'Employer Address')}
+            {renderInput('unpaidSalary', 'beneficiary', 'Beneficiary')}
+
+            <h3 className="text-xl font-semibold mb-2 mt-4">National Housing Trust (NHT) Contributions</h3>
+            {renderInput('nhtContributions', 'nhtNumber', 'NHT Number')}
+            {renderInput('nhtContributions', 'taxNumber', 'Tax Registration Number')}
+            {renderInput('nhtContributions', 'beneficiary', 'Beneficiary')}
+
+            <h3 className="text-xl font-semibold mb-2 mt-4">Jewellery</h3>
+            {renderInput('jewellery', 'description', 'Description')}
+            {renderInput('jewellery', 'beneficiary', 'Beneficiary')}
+
+            <h3 className="text-xl font-semibold mb-2 mt-4">Furniture</h3>
+            {renderInput('furniture', 'beneficiary', 'Beneficiary')}
+
+            <h3 className="text-xl font-semibold mb-2 mt-4">Paintings</h3>
+            {renderInput('paintings', 'beneficiary', 'Beneficiary')}
+
+            <h3 className="text-xl font-semibold mb-2 mt-4">Firearm</h3>
+            {renderInput('firearm', 'serialNumber', 'Serial Number')}
+            {renderInput('firearm', 'licenseNumber', 'License Number')}
+            {renderInput('firearm', 'beneficiary', 'Beneficiary')}
+          </section>
+        );
+      case 10:
+        return (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">Residual Estate</h2>
+            {renderInput('residualEstate', 'beneficiaries', 'Beneficiaries (comma-separated)')}
+
+            <h2 className="text-2xl font-semibold mb-4">Signature and Witnesses</h2>
+            {renderInput(null, 'signatureDate', 'Signature Date')}
+            {formData.witnesses.map((_, index) => (
+              <div key={`witness-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Witness {index + 1}</h3>
+                {renderInput('witnesses', 'name', 'Name', index)}
+                {renderInput('witnesses', 'address', 'Address', index)}
+                {renderInput('witnesses', 'occupation', 'Occupation', index)}
+              </div>
+            ))}
+          </section>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Last Will and Testament Generator</h1>
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <div
+              key={i}
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                i + 1 === currentStep
+                  ? 'bg-blue-500 text-white'
+                  : i + 1 < currentStep
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 text-gray-600'
+              }`}
+            >
+              {i + 1}
+            </div>
+          ))}
+        </div>
+        <div className="h-2 bg-gray-200 mt-2">
+          <div
+            className="h-full bg-blue-500"
+            style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
+          ></div>
+        </div>
+      </div>
+      <form onSubmit={handleGeneratePDF} className="space-y-8">
+        {renderStep()}
+        <div className="flex justify-between mt-8">
+          {currentStep > 1 && (
+            <button
+              type="button"
+              onClick={() => setCurrentStep(currentStep - 1)}
+              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Previous
+            </button>
+          )}
+          {currentStep < totalSteps && (
+            <button
+              type="button"
+              onClick={() => setCurrentStep(currentStep + 1)}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Next
+            </button>
+          )}
+          {currentStep === totalSteps && (
+            <button
+              type="submit"
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Generate Will
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default WillGenerator;
