@@ -1,0 +1,297 @@
+const BeneficiarySelect = ({ possession, index, onUpdate }) => {
+  // Combine all possible beneficiaries (children, grandchildren, and additional beneficiaries)
+  const allBeneficiaries = [
+    // Children as beneficiaries
+    ...(formData.children || []).map(child => ({
+      id: `child-${child.fullName}`,
+      fullName: child.fullName,
+      type: 'Child',
+      relationship: child.relationship,
+      email: child.email,
+      address: child.address,
+      parish: child.parish,
+      occupation: child.occupation
+    })),
+    // Grandchildren as beneficiaries
+    ...(formData.grandchildren || []).map(grandchild => ({
+      id: `grandchild-${grandchild.fullName}`,
+      fullName: grandchild.fullName,
+      type: 'Grandchild',
+      relationship: grandchild.relationship,
+      email: grandchild.email,
+      address: grandchild.address,
+      parish: grandchild.parish,
+      occupation: grandchild.occupation
+    })),
+    // Additional beneficiaries
+    ...(formData.additionalBeneficiaries || []).map((ben, idx) => ({
+      id: `other-${ben.fullName}-${idx}`,
+      fullName: ben.fullName,
+      type: ben.type,
+      relationship: ben.relationship,
+      email: ben.email,
+      address: ben.address,
+      parish: ben.parish
+    }))
+  ];
+
+  return (
+    <div className="space-y-4">
+      <label className="block text-gray-700 text-sm font-bold mb-2">
+        Add Beneficiary
+      </label>
+      <div className="flex space-x-2">
+        <select
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          onChange={(e) => {
+            const selectedBeneficiary = allBeneficiaries.find(b => b.id === e.target.value);
+            if (selectedBeneficiary) {
+              const updatedBeneficiaries = [
+                ...(possession.beneficiaries || []),
+                {
+                  ...selectedBeneficiary,
+                  sharePercentage: 0
+                }
+              ];
+
+              onUpdate(index, {
+                ...possession,
+                beneficiaries: updatedBeneficiaries
+              });
+            }
+            e.target.value = ''; // Reset select after adding
+          }}
+          value=""
+        >
+          <option value="">Select a beneficiary</option>
+          
+          {/* Children Group */}
+          {formData.children?.length > 0 && (
+            <optgroup label="Children">
+              {formData.children.map((child, idx) => {
+                const isSelected = possession.beneficiaries?.some(b => b.id === `child-${child.fullName}`);
+                if (!isSelected) {
+                  return (
+                    <option key={`child-${idx}`} value={`child-${child.fullName}`}>
+                      {child.fullName} (Child - {child.relationship})
+                    </option>
+                  );
+                }
+                return null;
+              })}
+            </optgroup>
+          )}
+
+          {/* Grandchildren Group */}
+          {formData.grandchildren?.length > 0 && (
+            <optgroup label="Grandchildren">
+              {formData.grandchildren.map((grandchild, idx) => {
+                const isSelected = possession.beneficiaries?.some(b => b.id === `grandchild-${grandchild.fullName}`);
+                if (!isSelected) {
+                  return (
+                    <option key={`grandchild-${idx}`} value={`grandchild-${grandchild.fullName}`}>
+                      {grandchild.fullName} (Grandchild - {grandchild.relationship})
+                    </option>
+                  );
+                }
+                return null;
+              })}
+            </optgroup>
+          )}
+          
+          {/* Additional Beneficiaries Group */}
+          {formData.additionalBeneficiaries?.length > 0 && (
+            <optgroup label="Other Beneficiaries">
+              {formData.additionalBeneficiaries.map((ben, idx) => {
+                const isSelected = possession.beneficiaries?.some(b => b.id === `other-${ben.fullName}-${idx}`);
+                if (!isSelected) {
+                  return (
+                    <option key={`ben-${idx}`} value={`other-${ben.fullName}-${idx}`}>
+                      {ben.fullName} ({ben.type})
+                    </option>
+                  );
+                }
+                return null;
+              })}
+            </optgroup>
+          )}
+        </select>
+      </div>
+
+      {/* Display selected beneficiaries */}
+      {possession.beneficiaries?.length > 0 && (
+        <div className="mt-4">
+          <h4 className="font-semibold mb-4">Selected Beneficiaries:</h4>
+          <div className="space-y-4">
+            {possession.beneficiaries.map((beneficiary, idx) => (
+              <div key={beneficiary.id} className="p-4 bg-gray-50 rounded-lg relative border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdate(index, {
+                      ...possession,
+                      beneficiaries: possession.beneficiaries.filter((_, i) => i !== idx)
+                    });
+                  }}
+                  className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                >
+                  ×
+                </button>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <span className="font-medium">Name:</span> {beneficiary.fullName}
+                  </div>
+                  <div>
+                    <span className="font-medium">Type:</span> {beneficiary.type}
+                  </div>
+                  <div>
+                    <span className="font-medium">Relationship:</span> {beneficiary.relationship}
+                  </div>
+                  <div>
+                    <span className="font-medium">Email:</span> {beneficiary.email}
+                  </div>
+                  <div>
+                    <span className="font-medium">Address:</span> {beneficiary.address}
+                  </div>
+                  {beneficiary.parish && (
+                    <div>
+                      <span className="font-medium">Parish:</span> {beneficiary.parish}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">Share Percentage:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={beneficiary.sharePercentage || 0}
+                      onChange={(e) => {
+                        const updatedBeneficiaries = possession.beneficiaries.map((b, i) =>
+                          i === idx ? { ...b, sharePercentage: parseFloat(e.target.value) || 0 } : b
+                        );
+                        onUpdate(index, {
+                          ...possession,
+                          beneficiaries: updatedBeneficiaries
+                        });
+                      }}
+                      className="shadow appearance-none border rounded w-24 py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                    <span>%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Show total share percentage */}
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <div className="font-medium">
+                Total Share: {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0)}%
+              </div>
+              {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0) !== 100 && (
+                <div className="text-red-500 text-sm mt-1">
+                  Note: Total share percentage should equal 100%
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Update the formatPossessionForPDF function to include grandchildren
+const formatPossessionForPDF = (possession) => {
+  const formatBeneficiaryDetails = (beneficiaries) => {
+    if (!beneficiaries || beneficiaries.length === 0) return '';
+    
+    return beneficiaries.map(b => 
+      `${b.fullName} ` +
+      `(${b.type === 'Grandchild' ? b.relationship : b.type}${b.type !== 'Grandchild' && b.relationship ? `, ${b.relationship}` : ''}) ` +
+      `of ${b.address}${b.parish ? `, ${b.parish}` : ''} ` +
+      `with a ${b.sharePercentage}% share`
+    ).join(' AND ');
+  };
+
+  const beneficiaryDetails = formatBeneficiaryDetails(possession.beneficiaries);
+
+  // Rest of your formatPossessionForPDF function...
+};
+
+
+
+
+
+// render session //
+
+  const renderAddPossessions = () => {
+    return (
+      <section className="space-y-6">
+        <h2 className="text-2xl font-semibold mb-4">Add Your Possessions</h2>
+        
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Select Possession Type
+          </label>
+          <select
+            value={formData.selectedPossession}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              selectedPossession: e.target.value
+            }))}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Select a possession type</option>
+            <option value="Property">Property</option>
+            <option value="Shares and Stocks">Shares and Stocks</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Bank Accounts">Bank Accounts</option>
+            <option value="Motor Vehicle">Motor Vehicle</option>
+            <option value="Unpaid Salary">Unpaid Salary</option>
+            <option value="NHT Contributions">NHT Contributions</option>
+            <option value="Jewellery">Jewellery</option>
+            <option value="Furniture">Furniture</option>
+            <option value="Paintings">Paintings</option>
+            <option value="Firearm">Firearm</option>
+          </select>
+        </div>
+  
+        <button
+          type="button"
+          onClick={() => {
+            if (!formData.selectedPossession) return;
+            const newPossession = createEmptyPossession(formData.selectedPossession);
+            setFormData(prev => ({
+              ...prev,
+              possessions: [...prev.possessions, newPossession]
+            }));
+          }}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          disabled={!formData.selectedPossession}
+        >
+          Add {formData.selectedPossession || 'Possession'}
+        </button>
+  
+        <div className="mt-6 space-y-4">
+          {formData.possessions.map((possession, index) => (
+            <div key={index} className="p-4 border rounded-lg shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">{possession.type}</h3>
+              
+              {renderPossessionFields(possession, index)}
+  
+              <button
+                type="button"
+                onClick={() => handleDeletePossession(index)}
+                className="mt-4 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  };
+  
