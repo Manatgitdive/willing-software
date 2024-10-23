@@ -2435,3 +2435,217 @@ const handleInputChange = (e, section, field, index = null) => {
 };
 
 export default WillGenerator;
+
+
+
+
+const generatePDF = async (formData) => {
+  try {
+    const pdfDoc = await PDFDocument.create();
+    const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+
+    // Helper function to add a new page with consistent header
+    const addPage = (pageNum) => {
+      const page = pdfDoc.addPage([612, 792]); // US Letter size
+      
+      // Add consistent header on every page
+      page.drawText(`Page - ${pageNum} - of 5`, {
+        x: 50,
+        y: 750,
+        size: 12,
+        font: timesRoman
+      });
+
+      // Add signature lines on every page
+      page.drawText("(Please insert Testator's signature here)", {
+        x: 50,
+        y: 730,
+        size: 10,
+        font: timesRoman
+      });
+
+      page.drawText("(Please insert Witness #1's signature here)", {
+        x: 250,
+        y: 730,
+        size: 10,
+        font: timesRoman
+      });
+
+      page.drawText("(Please insert Witness #2's signature here)", {
+        x: 450,
+        y: 730,
+        size: 10,
+        font: timesRoman
+      });
+
+      return { page, yOffset: 700 };
+    };
+
+    // Helper function to write text with proper formatting and line breaks
+    const writeText = (page, text, options = {}) => {
+      const {
+        x = 50,
+        y,
+        size = 12,
+        font = timesRoman,
+        color = rgb(0, 0, 0),
+        maxWidth = 500,
+        indent = 0,
+        align = 'left',
+        lineSpacing = 1.2
+      } = options;
+
+      const lines = [];
+      let currentLine = '';
+      const words = text.split(' ');
+      const actualX = x + (indent * 20);
+
+      // Handle center alignment
+      if (align === 'center') {
+        const width = font.widthOfTextAtSize(text, size);
+        const centerX = (page.getWidth() - width) / 2;
+        page.drawText(text, { x: centerX, y, size, font, color });
+        return y - (size * lineSpacing);
+      }
+
+      // Handle text wrapping
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const width = font.widthOfTextAtSize(testLine, size);
+
+        if (width > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+
+      // Draw all lines with proper spacing
+      let yPos = y;
+      lines.forEach(line => {
+        page.drawText(line, { x: actualX, y: yPos, size, font, color });
+        yPos -= size * lineSpacing;
+      });
+
+      return yPos - (size * 0.5); // Return final y position
+    };
+
+    // Helper to check and add new page when needed
+    const checkNewPage = (currentYOffset, pageNum, neededSpace = 100) => {
+      if (currentYOffset < neededSpace) {
+        return addPage(pageNum);
+      }
+      return { page: currentPage, yOffset: currentYOffset };
+    };
+
+    // Start Page 1
+    let { page, yOffset } = addPage(1);
+    let currentPage = page;
+
+    // Title
+    yOffset = writeText(page, 'LAST WILL AND TESTAMENT', {
+      y: yOffset,
+      size: 16,
+      font: timesBold,
+      align: 'center'
+    });
+    yOffset -= 30;
+
+    // Personal Information section
+    yOffset = writeText(page, 'THIS IS THE LAST WILL AND TESTAMENT of me ' +
+      `${formData.prefix || ''} ${formData.testatorName || ''} ${formData.suffix || ''}, ` +
+      `a ${formData.occupation || ''} whose address is ${formData.address || ''} ` +
+      `in the parish of ${formData.parish || ''}.`, {
+      y: yOffset,
+      lineSpacing: 1.5
+    });
+    yOffset -= 30;
+
+    // Section 1 - Revocation
+    yOffset = writeText(page, '1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND ' +
+      'DECLARE this to be my Last Will and Testament.', {
+      y: yOffset,
+      lineSpacing: 1.5
+    });
+    yOffset -= 30;
+
+    // Section 2 - Executors
+    yOffset = writeText(page, '2. APPOINTMENT OF EXECUTORS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 20;
+
+    // Executor details
+    formData.executors?.forEach((executor, index) => {
+      let executorText = `I HEREBY APPOINT ${executor.name || ''}, my ${executor.relationship || ''}, ` +
+        `${executor.occupation || ''}, of ${executor.address || ''}, in the parish of ${executor.parish || ''}`;
+      
+      if (index < formData.executors.length - 1) {
+        executorText += ' AND ';
+      }
+
+      yOffset = writeText(page, executorText, {
+        y: yOffset,
+        lineSpacing: 1.5
+      });
+      yOffset -= 20;
+    });
+
+    yOffset = writeText(page, 'to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', {
+      y: yOffset,
+      lineSpacing: 1.5
+    });
+    yOffset -= 30;
+
+    // Section 3 - Debts
+    yOffset = writeText(page, '3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral, ' +
+      'tombing and testamentary expenses.', {
+      y: yOffset,
+      lineSpacing: 1.5
+    });
+    yOffset -= 30;
+
+    // Section 4 - Funeral Arrangements
+    yOffset = writeText(page, '4. FUNERAL AND BURIAL ARRANGEMENTS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 20;
+
+    yOffset = writeText(page, 'I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that ' +
+      'my funeral expenses and any debts be paid out of my estate, along with the following:', {
+      y: yOffset,
+      lineSpacing: 1.5
+    });
+    yOffset -= 25;
+
+    // Funeral Details
+    [
+      `a. That I be ${formData.funeralDetails || ''}`,
+      `b. That be clothed in ${formData.clothingDetails || ''}`,
+      `c. That my remains be placed ${formData.remainsDetails || ''}`,
+      'd. That the following songs be included in my funeral programme',
+      'e. That the following song is played at my wedding-'
+    ].forEach(detail => {
+      yOffset = writeText(currentPage, detail, {
+        y: yOffset,
+        lineSpacing: 1.5
+      });
+      yOffset -= 15;
+    });
+
+    // Songs
+    formData.songs?.forEach(song => {
+      yOffset = writeText(currentPage, `- ${song}`, {
+        y: yOffset,
+        indent: 1,
+        lineSpacing: 1.5
+      });
+      yOffset -= 15;
+    });
