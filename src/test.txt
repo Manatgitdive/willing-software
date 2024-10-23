@@ -1,0 +1,91 @@
+// Update the BeneficiarySelect component to allow multiple selections
+const BeneficiarySelect = ({ possession, index, onUpdate }) => {
+    // Combine all possible beneficiaries (children and additional beneficiaries)
+    const allBeneficiaries = [
+        ...(formData.children || []).map(child => ({
+            fullName: child.fullName,
+            type: 'Child',
+            relationship: child.relationship,
+            email: child.email,
+            address: child.address,
+            parish: child.parish,
+            occupation: child.occupation
+        })),
+        ...(formData.additionalBeneficiaries || []).map(ben => ({
+            fullName: ben.fullName,
+            type: ben.type,
+            relationship: ben.relationship,
+            email: ben.email,
+            address: ben.address,
+            parish: ben.parish
+        }))
+    ];
+
+    // Update state to hold selected beneficiaries
+    const [selectedBeneficiaries, setSelectedBeneficiaries] = useState(possession.beneficiaries || []);
+
+    const handleBeneficiaryChange = (beneficiary) => {
+        setSelectedBeneficiaries(prev => {
+            if (prev.includes(beneficiary)) {
+                return prev.filter(b => b !== beneficiary);
+            } else {
+                return [...prev, beneficiary];
+            }
+        });
+    };
+
+    useEffect(() => {
+        onUpdate(index, { ...possession, beneficiaries: selectedBeneficiaries });
+    }, [selectedBeneficiaries]);
+
+    return (
+        <div className="space-y-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+                Select Beneficiaries
+            </label>
+            <select
+                multiple
+                value={selectedBeneficiaries}
+                onChange={(e) => {
+                    const options = e.target.options;
+                    const selected = [];
+                    for (let i = 0; i < options.length; i++) {
+                        if (options[i].selected) {
+                            selected.push(options[i].value);
+                        }
+                    }
+                    setSelectedBeneficiaries(selected);
+                }}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            >
+                {allBeneficiaries.map((ben, idx) => (
+                    <option key={`ben-${idx}`} value={ben.fullName}>
+                        {ben.fullName} ({ben.relationship})
+                    </option>
+                ))}
+            </select>
+        </div>
+    );
+};
+
+// Update the formatPossessionForPDF function to include multiple beneficiaries
+const formatPossessionForPDF = (possession) => {
+    const beneficiaryDetails = possession.beneficiaries.length > 0 ? 
+        `to ${possession.beneficiaries.join(', ')} of ${possession.beneficiaryAddress}` : '';
+
+    switch (possession.type) {
+        case 'Property':
+            return `Property- situate at ${possession.address}, in the parish of ${possession.parish} registered at Volume ${possession.volume} and Folio ${possession.folio} ${beneficiaryDetails}.`;
+        // ... other cases remain unchanged
+    }
+};
+
+// Ensure the PDF generation includes the updated beneficiaries
+const generatePDF = async (formData) => {
+    // ... existing code ...
+    formData.possessions.forEach(possession => {
+        const formattedText = formatPossessionForPDF(possession);
+        // Add formattedText to the PDF content
+    });
+    // ... existing code ...
+};

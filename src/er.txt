@@ -28,6 +28,9 @@ const WillGenerator = () => {
       occupation: ''
     },
   
+    grandchildren: [],
+    livingGrandchildren: 'no',
+
     // Children
     children: [],
     minorChildren: [], // Add this for minor children
@@ -124,8 +127,107 @@ const WillGenerator = () => {
   });
 
 
-   
+
+
+const BeneficiarySelect = ({ possession, index, onUpdate }) => {
+  // Combine all possible beneficiaries (children and additional beneficiaries)
+  const allBeneficiaries = [
+      ...(formData.children || []).map(child => ({
+          fullName: child.fullName,
+          type: 'Child',
+          relationship: child.relationship,
+          email: child.email,
+          address: child.address,
+          parish: child.parish,
+          occupation: child.occupation
+      })),
+      ...(formData.additionalBeneficiaries || []).map(ben => ({
+          fullName: ben.fullName,
+          type: ben.type,
+          relationship: ben.relationship,
+          email: ben.email,
+          address: ben.address,
+          parish: ben.parish
+      }))
+  ];
+
+  // Update state to hold selected beneficiaries
+  const [selectedBeneficiaries, setSelectedBeneficiaries] = useState(possession.beneficiaries || []);
+
+  const handleBeneficiaryChange = (beneficiary) => {
+      setSelectedBeneficiaries(prev => {
+          if (prev.includes(beneficiary)) {
+              return prev.filter(b => b !== beneficiary);
+          } else {
+              return [...prev, beneficiary];
+          }
+      });
+  };
+
+  useEffect(() => {
+      onUpdate(index, { ...possession, beneficiaries: selectedBeneficiaries });
+  }, [selectedBeneficiaries]);
+
+  return (
+      <div className="space-y-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+              Select Beneficiaries
+          </label>
+          <select
+              multiple
+              value={selectedBeneficiaries}
+              onChange={(e) => {
+                  const options = e.target.options;
+                  const selected = [];
+                  for (let i = 0; i < options.length; i++) {
+                      if (options[i].selected) {
+                          selected.push(options[i].value);
+                      }
+                  }
+                  setSelectedBeneficiaries(selected);
+              }}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+              {allBeneficiaries.map((ben, idx) => (
+                  <option key={`${ben.fullName}-${idx}`} value={ben.fullName}>
+                      {ben.fullName} ({ben.relationship})
+                  </option>
+              ))}
+          </select>
+      </div>
+  );
+};
+
+
   
+
+     
+  const addGrandchild = () => {
+    setFormData(prev => ({
+      ...prev,
+      grandchildren: [
+        ...prev.grandchildren,
+        {
+          fullName: '',
+          relationship: '',
+          dateOfBirth: '',
+          email: '',
+          occupation: '',
+          address: '',
+          parish: ''
+        }
+      ]
+    }));
+  };
+
+  // Add function to remove grandchild
+  const removeGrandchild = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      grandchildren: prev.grandchildren.filter((_, i) => i !== index)
+    }));
+  };
+
      
   const calculateAge = (birthDate) => {
     const today = new Date();
@@ -166,14 +268,14 @@ const WillGenerator = () => {
     else if ([12, 13, 14, 15, 16].includes(currentStep)) {
       nextStep = 17;
     }
+
+    
   
     // Ensure we don't exceed total steps
     setCurrentStep(Math.min(totalSteps, nextStep));
   };
    
      
-
-
 
 
 
@@ -194,6 +296,9 @@ const WillGenerator = () => {
         prevStep = 7;
       }
     }
+     
+    
+    
     
     // Handle possession section navigation
     else if (currentStep === 17) {
@@ -209,471 +314,55 @@ const WillGenerator = () => {
     setCurrentStep(Math.max(1, prevStep));
   };
 
-     // create empty possesions //
 
+  const formatPossessionForPDF = (possession) => {
+    // Construct beneficiary details if available
+    const beneficiaryDetails = possession.beneficiary ? 
+        `to ${possession.beneficiary}${possession.beneficiaryType === 'Child' ? ' (Child)' : ''} ${possession.beneficiaryRelationship ? `(${possession.beneficiaryRelationship})` : ''} of ${possession.beneficiaryAddress}${possession.beneficiaryParish ? `, ${possession.beneficiaryParish}` : ''}` : '';
 
-     const createEmptyPossession = (type) => {
-      // Base fields that all possession types will have
-      const baseFields = {
-        type,
-        beneficiaries: [], // Array to hold multiple beneficiaries
-        beneficiaryShares: {}, // Object to track share percentages
-        totalShare: 0 // Track total share percentage
-      };
-    
-      switch (type) {
+    // Switch case to format possession based on its type
+    switch (possession.type) {
         case 'Property':
-          return {
-            ...baseFields,
-            address: '',
-            parish: '',
-            volume: '',
-            folio: '',
-            description: '',
-            estimatedValue: '',
-            titleDetails: '',
-            propertyType: '', // residential, commercial, agricultural, etc.
-            currentUsage: '',
-            encumbrances: '', // any mortgages, liens, etc.
-          };
-    
+            return `Property- situate at ${possession.address}, in the parish of ${possession.parish} registered at Volume ${possession.volume} and Folio ${possession.folio} ${beneficiaryDetails}.`;
+        
         case 'Shares and Stocks':
-          return {
-            ...baseFields,
-            company: '',
-            country: '',
-            exchange: '',
-            accountNumber: '',
-            numberOfShares: '',
-            shareType: '',
-            certificateNumbers: '',
-            brokerDetails: '',
-            currentValue: '',
-            dividendInstructions: ''
-          };
-    
+            return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} in account numbered ${possession.accountNumber} ${beneficiaryDetails}.`;
+        
         case 'Insurance':
-          return {
-            ...baseFields,
-            policyNumber: '',
-            company: '',
-            address: '',
-            country: '',
-            policyType: '',
-            sumInsured: '',
-            premiumStatus: '',
-            maturityDate: '',
-            nomineeDetails: '',
-            insuranceAgentDetails: ''
-          };
-    
+            return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} located at ${possession.address}, ${possession.country} ${beneficiaryDetails}.`;
+        
         case 'Bank Accounts':
-          return {
-            ...baseFields,
-            accountNumber: '',
-            bank: '',
-            address: '',
-            country: '',
-            accountType: '', // savings, checking, fixed deposit, etc.
-            currency: '',
-            branchDetails: '',
-            jointAccountDetails: '',
-            bankContactInfo: '',
-            onlineBankingAccess: false
-          };
-    
+            return `Proceeds of bank account numbered ${possession.accountNumber}, held at ${possession.bank} located at ${possession.address}, ${possession.country} ${beneficiaryDetails}.`;
+        
         case 'Motor Vehicle':
-          return {
-            ...baseFields,
-            color: '',
-            make: '',
-            model: '',
-            year: '',
-            licensePlate: '',
-            engineNumber: '',
-            chassisNumber: '',
-            registrationDetails: '',
-            insuranceDetails: '',
-            condition: '',
-            currentMileage: '',
-            serviceHistory: '',
-            parkingLocation: '',
-            modifications: ''
-          };
-    
+            return `${possession.color} ${possession.make} ${possession.model} Motor vehicle bearing License plate number ${possession.licensePlate} and engine number ${possession.engineNumber} and chassis number ${possession.chassisNumber} ${beneficiaryDetails}.`;
+        
         case 'Unpaid Salary':
-          return {
-            ...baseFields,
-            employer: '',
-            employerAddress: '',
-            employmentId: '',
-            salaryAmount: '',
-            periodCovered: '',
-            paymentFrequency: '',
-            lastPaymentDate: '',
-            employerContactPerson: '',
-            employerPhone: '',
-            employerEmail: ''
-          };
-    
+            return `Unpaid salary and/or emoluments with my employer, ${possession.employer} located at ${possession.employerAddress} ${beneficiaryDetails}.`;
+        
         case 'NHT Contributions':
-          return {
-            ...baseFields,
-            nhtNumber: '',
-            taxNumber: '',
-            contributionPeriod: '',
-            totalContributions: '',
-            lastContributionDate: '',
-            refundStatus: '',
-            benefitEligibility: '',
-            mortgageDetails: '',
-            contactPerson: '',
-            applicationStatus: ''
-          };
-    
+            return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, Tax Number: ${possession.taxNumber}) ${beneficiaryDetails}.`;
+        
         case 'Jewellery':
-          return {
-            ...baseFields,
-            description: '',
-            itemType: '', // necklace, ring, watch, etc.
-            material: '',
-            weight: '',
-            stones: '',
-            appraisalValue: '',
-            dateAcquired: '',
-            location: '',
-            insuranceDetails: '',
-            specialInstructions: '',
-            authenticityDocuments: ''
-          };
-    
+            return `${possession.description} described as my Jewellery ${beneficiaryDetails}.`;
+        
         case 'Furniture':
-          return {
-            ...baseFields,
-            description: '',
-            location: '',
-            itemList: [],
-            condition: '',
-            acquisitionDate: '',
-            estimatedValue: '',
-            specialInstructions: '',
-            insuranceDetails: '',
-            maintenanceRecords: '',
-            historicalSignificance: ''
-          };
-    
+            return `Furniture ${beneficiaryDetails}.`;
+        
         case 'Paintings':
-          return {
-            ...baseFields,
-            description: '',
-            artist: '',
-            title: '',
-            medium: '',
-            dimensions: '',
-            yearCreated: '',
-            provenance: '',
-            appraisalValue: '',
-            location: '',
-            condition: '',
-            authenticityCertificate: '',
-            exhibitionHistory: '',
-            insuranceDetails: ''
-          };
-    
+            return `Paintings ${beneficiaryDetails}.`;
+        
         case 'Firearm':
-          return {
-            ...baseFields,
-            serialNumber: '',
-            licenseNumber: '',
-            make: '',
-            model: '',
-            caliber: '',
-            type: '',
-            purchaseDate: '',
-            licenseExpiryDate: '',
-            storageLocation: '',
-            ammunitionDetails: '',
-            maintenanceRecords: '',
-            permitsAndCertifications: '',
-            registrationStatus: ''
-          };
-    
-        case 'Digital Assets':
-          return {
-            ...baseFields,
-            assetType: '', // cryptocurrency, digital art, domain names, etc.
-            platform: '',
-            accountDetails: '',
-            walletAddress: '',
-            accessInstructions: '',
-            estimatedValue: '',
-            twoFactorAuthDetails: '',
-            backupCodes: '',
-            recoveryInstructions: ''
-          };
-    
-        case 'Intellectual Property':
-          return {
-            ...baseFields,
-            type: '', // patent, trademark, copyright, etc.
-            registrationNumber: '',
-            jurisdiction: '',
-            expiryDate: '',
-            rightsOwned: '',
-            royaltyAgreements: '',
-            licensingDetails: '',
-            pendingApplications: '',
-            associatedRevenue: ''
-          };
-    
-        case 'Business Interests':
-          return {
-            ...baseFields,
-            companyName: '',
-            registrationNumber: '',
-            businessType: '',
-            ownershipPercentage: '',
-            sharesCertificateNumbers: '',
-            partnershipDetails: '',
-            valuationDetails: '',
-            successionPlan: '',
-            keyContacts: '',
-            operatingAgreements: ''
-          };
-    
-        case 'Residual Estate':
-          return {
-            ...baseFields,
-            description: '',
-            estimatedValue: '',
-            distributionInstructions: '',
-            contingentBeneficiaries: [],
-            specialConditions: '',
-            executorInstructions: ''
-          };
-    
+            return `Firearm bearing serial number ${possession.serialNumber} and firearm licence number ${possession.licenseNumber} ${beneficiaryDetails}.`;
+        
         default:
-          return {
-            ...baseFields,
-            description: '',
-            estimatedValue: '',
-            location: '',
-            additionalDetails: '',
-            specialInstructions: ''
-          };
-      }
-    };
-    
-    // Example usage:
-    // const newProperty = createEmptyPossession('Property');
-    // const newVehicle = createEmptyPossession('Motor Vehicle');
+            return ''; // Return an empty string for unrecognized possession types
+    }
+};
 
 
 
-
-
-  
-
-
-
-  const BeneficiarySelect = ({ possession, index, onUpdate }) => {
-    // Get all possible beneficiaries by combining children and additional beneficiaries
-    const allBeneficiaries = [
-      ...(formData.children || []).map(child => ({
-        id: `child-${child.fullName}`,
-        fullName: child.fullName,
-        type: 'Child',
-        relationship: child.relationship,
-        email: child.email,
-        address: child.address,
-        parish: child.parish,
-        occupation: child.occupation
-      })),
-      ...(formData.additionalBeneficiaries || []).map((ben, idx) => ({
-        id: `other-${ben.fullName}-${idx}`,
-        fullName: ben.fullName,
-        type: ben.type,
-        relationship: ben.relationship,
-        email: ben.email,
-        address: ben.address,
-        parish: ben.parish
-      }))
-    ];
-  
-    // Function to add a new beneficiary to the possession
-    const handleAddBeneficiary = (selectedBeneficiaryId) => {
-      const selectedBeneficiary = allBeneficiaries.find(b => b.id === selectedBeneficiaryId);
-      if (selectedBeneficiary) {
-        const updatedBeneficiaries = [
-          ...(possession.beneficiaries || []),
-          {
-            id: selectedBeneficiary.id,
-            fullName: selectedBeneficiary.fullName,
-            type: selectedBeneficiary.type,
-            relationship: selectedBeneficiary.relationship,
-            email: selectedBeneficiary.email,
-            address: selectedBeneficiary.address,
-            parish: selectedBeneficiary.parish,
-            sharePercentage: 0 // Default share percentage
-          }
-        ];
-  
-        onUpdate(index, {
-          ...possession,
-          beneficiaries: updatedBeneficiaries
-        });
-      }
-    };
-  
-    // Function to remove a beneficiary
-    const handleRemoveBeneficiary = (beneficiaryIndex) => {
-      const updatedBeneficiaries = possession.beneficiaries.filter((_, idx) => idx !== beneficiaryIndex);
-      onUpdate(index, {
-        ...possession,
-        beneficiaries: updatedBeneficiaries
-      });
-    };
-  
-    // Function to update beneficiary share percentage
-    const handleUpdateShare = (beneficiaryIndex, sharePercentage) => {
-      const updatedBeneficiaries = possession.beneficiaries.map((ben, idx) => {
-        if (idx === beneficiaryIndex) {
-          return { ...ben, sharePercentage: parseFloat(sharePercentage) || 0 };
-        }
-        return ben;
-      });
-  
-      onUpdate(index, {
-        ...possession,
-        beneficiaries: updatedBeneficiaries
-      });
-    };
-  
-    return (
-      <div className="space-y-6">
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Add Beneficiary
-          </label>
-          <div className="flex space-x-2">
-            <select
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              onChange={(e) => handleAddBeneficiary(e.target.value)}
-              value=""
-            >
-              <option value="">Select a beneficiary</option>
-              
-              {/* Children Group */}
-              {formData.children?.length > 0 && (
-                <optgroup label="Children">
-                  {formData.children.map((child, idx) => {
-                    const isSelected = possession.beneficiaries?.some(b => b.id === `child-${child.fullName}`);
-                    if (!isSelected) {
-                      return (
-                        <option key={`child-${idx}`} value={`child-${child.fullName}`}>
-                          {child.fullName} (Child)
-                        </option>
-                      );
-                    }
-                    return null;
-                  })}
-                </optgroup>
-              )}
-              
-              {/* Additional Beneficiaries Group */}
-              {formData.additionalBeneficiaries?.length > 0 && (
-                <optgroup label="Other Beneficiaries">
-                  {formData.additionalBeneficiaries.map((ben, idx) => {
-                    const isSelected = possession.beneficiaries?.some(b => b.id === `other-${ben.fullName}-${idx}`);
-                    if (!isSelected) {
-                      return (
-                        <option key={`ben-${idx}`} value={`other-${ben.fullName}-${idx}`}>
-                          {ben.fullName} ({ben.type})
-                        </option>
-                      );
-                    }
-                    return null;
-                  })}
-                </optgroup>
-              )}
-            </select>
-          </div>
-        </div>
-  
-        {/* Display selected beneficiaries */}
-        {possession.beneficiaries && possession.beneficiaries.length > 0 && (
-          <div className="mt-4">
-            <h4 className="font-semibold mb-4">Selected Beneficiaries:</h4>
-            <div className="space-y-4">
-              {possession.beneficiaries.map((beneficiary, idx) => (
-                <div key={beneficiary.id} className="p-4 bg-gray-50 rounded-lg relative border">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveBeneficiary(idx)}
-                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                  >
-                    ×
-                  </button>
-                  
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <span className="font-medium">Name:</span> {beneficiary.fullName}
-                    </div>
-                    <div>
-                      <span className="font-medium">Type:</span> {beneficiary.type}
-                    </div>
-                    <div>
-                      <span className="font-medium">Relationship:</span> {beneficiary.relationship}
-                    </div>
-                    <div>
-                      <span className="font-medium">Email:</span> {beneficiary.email}
-                    </div>
-                    <div>
-                      <span className="font-medium">Address:</span> {beneficiary.address}
-                    </div>
-                    {beneficiary.parish && (
-                      <div>
-                        <span className="font-medium">Parish:</span> {beneficiary.parish}
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">Share Percentage:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={beneficiary.sharePercentage || 0}
-                        onChange={(e) => handleUpdateShare(idx, e.target.value)}
-                        className="shadow appearance-none border rounded w-24 py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      />
-                      <span>%</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-  
-              {/* Show total share percentage */}
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                <div className="font-medium">
-                  Total Share: {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0)}%
-                </div>
-                {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0) !== 100 && (
-                  <div className="text-red-500 text-sm mt-1">
-                    Note: Total share percentage should equal 100%
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  
-
-
+ 
 
 
   
@@ -951,10 +640,7 @@ const handleAddBeneficiary = () => {
    
      // update format // 
 
-
      
-
-
 
 // Update possession fields rendering
 
@@ -987,115 +673,88 @@ const handleBequestChange = (index, field, value) => {
   });
 };
 
-
-
-
-   
-const formatPossessionForPDF = (possession) => {
-  // Helper function to format beneficiary details
-  const formatBeneficiaryDetails = (beneficiaries) => {
-    if (!beneficiaries || beneficiaries.length === 0) return '';
-    
-    return beneficiaries.map(b => 
-      `${b.fullName}${b.type === 'Child' ? ' (Child)' : ''} ` +
-      `(${b.relationship}) of ${b.address}${b.parish ? `, ${b.parish}` : ''} ` +
-      `with a ${b.sharePercentage}% share`
-    ).join(' AND ');
+const createEmptyPossession = (type) => {
+  const baseFields = {
+    type,
+    beneficiary: '',
+    beneficiaryAddress: ''
   };
 
-  // Get formatted beneficiary details
-  const beneficiaryDetails = formatBeneficiaryDetails(possession.beneficiaries);
-  
-  // Base text for when no beneficiaries are specified
-  const noBeneficiariesText = 'with no specified beneficiaries';
-  
-  // Format based on possession type
-  switch (possession.type) {
+  switch (type) {
     case 'Property':
-      return `Property- situate at ${possession.address}, in the parish of ${possession.parish} ` +
-             `registered at Volume ${possession.volume} and Folio ${possession.folio} of the Register ` +
-             `Book of Titles to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        address: '',
+        parish: '',
+        volume: '',
+        folio: ''
+      };
     case 'Shares and Stocks':
-      return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} ` +
-             `in account numbered ${possession.accountNumber}, comprising ${possession.numberOfShares} shares ` +
-             `with certificate numbers ${possession.certificateNumbers} to be shared between ` +
-             `${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        company: '',
+        country: '',
+        exchange: '',
+        accountNumber: ''
+      };
     case 'Insurance':
-      return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} ` +
-             `located at ${possession.address}, ${possession.country}, being a ${possession.policyType} policy ` +
-             `with sum insured of ${possession.sumInsured} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        policyNumber: '',
+        company: '',
+        address: '',
+        country: ''
+      };
     case 'Bank Accounts':
-      return `Proceeds of ${possession.accountType} account numbered ${possession.accountNumber}, ` +
-             `held at ${possession.bank} located at ${possession.address}, ${possession.country}, ` +
-             `in ${possession.currency} currency to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        accountNumber: '',
+        bank: '',
+        address: '',
+        country: ''
+      };
     case 'Motor Vehicle':
-      return `${possession.color} ${possession.year} ${possession.make} ${possession.model} Motor vehicle ` +
-             `bearing License plate number ${possession.licensePlate} and engine number ${possession.engineNumber} ` +
-             `and chassis number ${possession.chassisNumber}, currently located at ${possession.parkingLocation} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        color: '',
+        make: '',
+        model: '',
+        licensePlate: '',
+        engineNumber: '',
+        chassisNumber: ''
+      };
     case 'Unpaid Salary':
-      return `Unpaid salary and/or emoluments with my employer, ${possession.employer} ` +
-             `located at ${possession.employerAddress}, Employee ID: ${possession.employmentId}, ` +
-             `covering the period ${possession.periodCovered} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        employer: '',
+        employerAddress: ''
+      };
     case 'NHT Contributions':
-      return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, ` +
-             `Tax Number: ${possession.taxNumber}), with total contributions of ${possession.totalContributions} ` +
-             `up to ${possession.lastContributionDate} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        nhtNumber: '',
+        taxNumber: ''
+      };
     case 'Jewellery':
-      return `Jewellery described as ${possession.description}, being a ${possession.itemType} ` +
-             `made of ${possession.material}${possession.stones ? `, set with ${possession.stones}` : ''}, ` +
-             `valued at ${possession.appraisalValue}, currently located at ${possession.location} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
     case 'Furniture':
-      return `Furniture ${possession.description ? `described as ${possession.description}, ` : ''}` +
-             `currently located at ${possession.location}, ` +
-             `valued at ${possession.estimatedValue} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
     case 'Paintings':
-      return `Painting titled "${possession.title}" by artist ${possession.artist}, ` +
-             `created in ${possession.yearCreated}, ${possession.medium}, ` +
-             `measuring ${possession.dimensions}, currently located at ${possession.location}, ` +
-             `valued at ${possession.appraisalValue} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        description: ''
+      };
     case 'Firearm':
-      return `Firearm bearing serial number ${possession.serialNumber} and firearm licence ` +
-             `number ${possession.licenseNumber}, being a ${possession.make} ${possession.model} ` +
-             `${possession.caliber} caliber ${possession.type}, stored at ${possession.storageLocation} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Digital Assets':
-      return `Digital assets described as ${possession.assetType} held on ${possession.platform}, ` +
-             `account identifier ${possession.accountDetails}, with estimated value of ${possession.estimatedValue} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Intellectual Property':
-      return `Intellectual Property rights being ${possession.type} registered under number ${possession.registrationNumber} ` +
-             `in ${possession.jurisdiction}, valid until ${possession.expiryDate}, ` +
-             `with associated rights ${possession.rightsOwned} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Business Interests':
-      return `Business interests in ${possession.companyName} (Registration Number: ${possession.registrationNumber}), ` +
-             `being a ${possession.businessType} with ${possession.ownershipPercentage}% ownership, ` +
-             `valued at ${possession.valuationDetails} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Residual Estate':
-      return `Residual estate comprising ${possession.description}, ` +
-             `with estimated value of ${possession.estimatedValue}, subject to ${possession.specialConditions} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
+      return {
+        ...baseFields,
+        serialNumber: '',
+        licenseNumber: ''
+      };
     default:
-      return `${possession.type}: ${possession.description || 'No description provided'} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+      return baseFields;
   }
 };
+
+
+  
 
 
   const handleDeletePossession = (index) => {
@@ -1521,9 +1180,9 @@ const formatPossessionDetails = (type, item) => {
       const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
       const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   
-      // Keep your existing helper functions exactly as they are
+      // Helper function to add a new page
       const addPage = (pageNum) => {
-        const page = pdfDoc.addPage([612, 792]); 
+        const page = pdfDoc.addPage([612, 792]); // US Letter size
         
         page.drawText(`Page - ${pageNum} - of 5`, {
           x: 50,
@@ -1556,7 +1215,7 @@ const formatPossessionDetails = (type, item) => {
         return { page, yOffset: 700 };
       };
   
-      // Keep your existing writeText function exactly as is
+      // Helper function to write text
       const writeText = (page, text, options = {}) => {
         const {
           x = 50,
@@ -1606,7 +1265,7 @@ const formatPossessionDetails = (type, item) => {
         return yPos - (size * 0.5);
       };
   
-      // Keep your existing helper functions
+      // Helper to draw dotted line
       const drawDottedLine = (page, startX, startY, length, options = {}) => {
         const { spacing = 5, thickness = 0.5 } = options;
         for (let i = 0; i < length; i += spacing) {
@@ -1619,6 +1278,7 @@ const formatPossessionDetails = (type, item) => {
         }
       };
   
+      // Helper to check and add new page
       const checkNewPage = (currentYOffset, pageNum, neededSpace = 100) => {
         if (currentYOffset < neededSpace) {
           return addPage(pageNum);
@@ -1626,59 +1286,32 @@ const formatPossessionDetails = (type, item) => {
         return { page: currentPage, yOffset: currentYOffset };
       };
   
-      // Updated formatPossessionForPDF function to handle multiple beneficiaries
+      // Format possession details
       const formatPossessionForPDF = (possession) => {
-        const formatBeneficiaryDetails = (beneficiaries) => {
-          if (!beneficiaries || beneficiaries.length === 0) {
-            // Fallback to legacy single beneficiary format
-            if (possession.beneficiary) {
-              return `to ${possession.beneficiary}${possession.beneficiaryType === 'Child' ? ' (Child)' : ''} ` +
-                     `${possession.beneficiaryRelationship ? `(${possession.beneficiaryRelationship})` : ''} ` +
-                     `of ${possession.beneficiaryAddress}${possession.beneficiaryParish ? `, ${possession.beneficiaryParish}` : ''}`;
-            }
-            return '';
-          }
-  
-          return 'to be shared between ' + beneficiaries.map(b => 
-            `${b.fullName}${b.type === 'Child' ? ' (Child)' : ''} ` +
-            `(${b.relationship}) of ${b.address}${b.parish ? `, ${b.parish}` : ''} ` +
-            `with a ${b.sharePercentage}% share`
-          ).join(' AND ');
-        };
-  
-        const beneficiaryDetails = formatBeneficiaryDetails(possession.beneficiaries);
+        const beneficiaryDetails = possession.beneficiary ? 
+          `to ${possession.beneficiary}${possession.beneficiaryType === 'Child' ? ' (Child)' : ''} ${possession.beneficiaryRelationship ? `(${possession.beneficiaryRelationship})` : ''} of ${possession.beneficiaryAddress}${possession.beneficiaryParish ? `, ${possession.beneficiaryParish}` : ''}` : '';
   
         switch (possession.type) {
           case 'Property':
-            return `Property- situate at ${possession.address}, in the parish of ${possession.parish} ` +
-                   `registered at Volume ${possession.volume} and Folio ${possession.folio} of the Register ` +
-                   `Book of Titles ${beneficiaryDetails}.`;
+            return `Property- situate at ${possession.address}, in the parish of ${possession.parish} registered at Volume ${possession.volume} and Folio ${possession.folio} of the Register Book of Titles ${beneficiaryDetails}.`;
   
-          // Keep all your other cases exactly as they are
           case 'Shares and Stocks':
-            return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} ` +
-                   `in account numbered ${possession.accountNumber} ${beneficiaryDetails}.`;
+            return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} in account numbered ${possession.accountNumber} ${beneficiaryDetails}.`;
   
           case 'Insurance':
-            return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} ` +
-                   `located at ${possession.address}, ${possession.country} ${beneficiaryDetails}.`;
+            return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} located at ${possession.address}, ${possession.country} ${beneficiaryDetails}.`;
   
           case 'Bank Accounts':
-            return `Proceeds of bank account numbered ${possession.accountNumber}, held at ${possession.bank} ` +
-                   `located at ${possession.address}, ${possession.country} ${beneficiaryDetails}.`;
+            return `Proceeds of bank account numbered ${possession.accountNumber}, held at ${possession.bank} located at ${possession.address}, ${possession.country} ${beneficiaryDetails}.`;
   
           case 'Motor Vehicle':
-            return `${possession.color} ${possession.make} ${possession.model} Motor vehicle bearing License ` +
-                   `plate number ${possession.licensePlate} and engine number ${possession.engineNumber} and ` +
-                   `chassis number ${possession.chassisNumber} ${beneficiaryDetails}.`;
+            return `${possession.color} ${possession.make} ${possession.model} Motor vehicle bearing License plate number ${possession.licensePlate} and engine number ${possession.engineNumber} and chassis number ${possession.chassisNumber} ${beneficiaryDetails}.`;
   
           case 'Unpaid Salary':
-            return `Unpaid salary and/or emoluments with my employer, ${possession.employer} located at ` +
-                   `${possession.employerAddress} ${beneficiaryDetails}.`;
+            return `Unpaid salary and/or emoluments with my employer, ${possession.employer} located at ${possession.employerAddress} ${beneficiaryDetails}.`;
   
           case 'NHT Contributions':
-            return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, ` +
-                   `Tax Number: ${possession.taxNumber}) ${beneficiaryDetails}.`;
+            return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, Tax Number: ${possession.taxNumber}) ${beneficiaryDetails}.`;
   
           case 'Jewellery':
             return `${possession.description} described as my Jewellery ${beneficiaryDetails}.`;
@@ -1690,308 +1323,249 @@ const formatPossessionDetails = (type, item) => {
             return `Paintings ${beneficiaryDetails}.`;
   
           case 'Firearm':
-            return `Firearm bearing serial number ${possession.serialNumber} and firearm licence ` +
-                   `number ${possession.licenseNumber} ${beneficiaryDetails}.`;
+            return `Firearm bearing serial number ${possession.serialNumber} and firearm licence number ${possession.licenseNumber} ${beneficiaryDetails}.`;
   
           default:
             return '';
         }
       };
-
+  
       // Start PDF generation
-    let { page, yOffset } = addPage(1);
-    let currentPage = page;
-
-    // Title
-    yOffset = writeText(page, 'LAST WILL AND TESTAMENT', {
-      y: yOffset,
-      size: 16,
-      font: timesBold,
-      align: 'center'
-    });
-    yOffset -= 30;
-
-    // Personal Information (keep exactly as is)
-    const personalInfo = `THIS IS THE LAST WILL AND TESTAMENT of me ${formData.prefix || ''} ${formData.testatorName || ''} ${formData.suffix || ''}, a ${formData.occupation || ''} whose address is ${formData.address || ''} in the parish of ${formData.parish || ''}.`;
-    yOffset = writeText(page, personalInfo, { y: yOffset, lineSpacing: 1.5 });
-    yOffset -= 30;
-
-     // Section 1 - Revocation
-     yOffset = writeText(page, '1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND DECLARE this to be my Last Will and Testament.', {
-      y: yOffset,
-      lineSpacing: 1.5
-    });
-    yOffset -= 30;
-
-    // Section 2 - Executors
-    yOffset = writeText(page, '2. APPOINTMENT OF EXECUTORS', {
-      y: yOffset,
-      font: timesBold
-    });
-    yOffset -= 20;
-
-    formData.executors?.forEach((executor, index) => {
-      const executorText = `I HEREBY APPOINT ${executor.name || ''}, my ${executor.relationship || ''}, ${executor.occupation || ''}, of ${executor.address || ''}, in the parish of ${executor.parish || ''}${index < formData.executors.length - 1 ? ' AND' : ''}`;
-      yOffset = writeText(page, executorText, { y: yOffset, lineSpacing: 1.5 });
+      let { page, yOffset } = addPage(1);
+      let currentPage = page;
+  
+      // Title
+      yOffset = writeText(page, 'LAST WILL AND TESTAMENT', {
+        y: yOffset,
+        size: 16,
+        font: timesBold,
+        align: 'center'
+      });
+      yOffset -= 30;
+  
+      // Personal Information
+      const personalInfo = `THIS IS THE LAST WILL AND TESTAMENT of me ${formData.prefix || ''} ${formData.testatorName || ''} ${formData.suffix || ''}, a ${formData.occupation || ''} whose address is ${formData.address || ''} in the parish of ${formData.parish || ''}.`;
+      yOffset = writeText(page, personalInfo, { y: yOffset, lineSpacing: 1.5 });
+      yOffset -= 30;
+  
+      // Section 1 - Revocation
+      yOffset = writeText(page, '1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND DECLARE this to be my Last Will and Testament.', {
+        y: yOffset,
+        lineSpacing: 1.5
+      });
+      yOffset -= 30;
+  
+      // Section 2 - Executors
+      yOffset = writeText(page, '2. APPOINTMENT OF EXECUTORS', {
+        y: yOffset,
+        font: timesBold
+      });
       yOffset -= 20;
-    });
-
-    yOffset = writeText(page, 'to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', {
-      y: yOffset,
-      lineSpacing: 1.5
-    });
-    yOffset -= 30;
-
-    // Section 3 - Debts
-    yOffset = writeText(page, '3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral, tombing and testamentary expenses.', {
-      y: yOffset,
-      lineSpacing: 1.5
-    });
-    yOffset -= 30;
-
-    // Section 4 - Funeral Arrangements
-    ({ page: currentPage, yOffset } = checkNewPage(yOffset, 2));
-
-    yOffset = writeText(currentPage, '4. FUNERAL AND BURIAL ARRANGEMENTS', {
-      y: yOffset,
-      font: timesBold
-    });
-    yOffset -= 20;
-
-    yOffset = writeText(currentPage, 'I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that my funeral expenses and any debts be paid out of my estate, along with the following:', {
-      y: yOffset,
-      lineSpacing: 1.5
-    });
-    yOffset -= 25;
-
-    // Funeral Details
-    [
-      `a. That I be ${formData.funeralDetails || ''}`,
-      `b. That be clothed in ${formData.clothingDetails || ''}`,
-      `c. That my remains be placed ${formData.remainsDetails || ''}`,
-      'd. That the following songs be included in my funeral programme',
-      'e. That the following song is played at my wedding-'
-    ].forEach(detail => {
-      yOffset = writeText(currentPage, detail, {
-        y: yOffset,
-        lineSpacing: 1.5
-      });
-      yOffset -= 15;
-    });
-
-    // Songs
-    formData.songs?.forEach(song => {
-      yOffset = writeText(currentPage, `- ${song}`, {
-        y: yOffset,
-        indent: 1,
-        lineSpacing: 1.5
-      });
-      yOffset -= 15;
-    });
-
-    // Sections 1-4 remain exactly the same...
-    // Section 1 - Revocation
-    yOffset = writeText(page, '1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND DECLARE this to be my Last Will and Testament.', {
-      y: yOffset,
-      lineSpacing: 1.5
-    });
-    yOffset -= 30;
-
-    // Section 2-4 (keep exactly as is)
-    // ... your existing executor and funeral arrangement code ...
-
-    // Updated Section 5 - Possessions with multiple beneficiary support
-    ({ page: currentPage, yOffset } = addPage(3));
-
-    yOffset = writeText(currentPage, '5. I GIVE DEVISE AND BEQUEATH:', {
-      y: yOffset,
-      font: timesBold
-    });
-    yOffset -= 25;
-
-    // Keep your existing possession types
-    const possessionTypes = {
-      'Property': 'a',
-      'Shares and Stocks': 'b',
-      'Insurance': 'c',
-      'Bank Accounts': 'd',
-      'Motor Vehicle': 'e',
-      'Unpaid Salary': 'f',
-      'NHT Contributions': 'g',
-      'Jewellery': 'h',
-      'Furniture': 'i',
-      'Paintings': 'j',
-      'Firearm': 'k'
-    };
-
-    // Updated possession writing section with multiple beneficiary support
-    Object.entries(possessionTypes).forEach(([type, letter]) => {
-      const possessionsOfType = formData.possessions.filter(p => p.type === type);
-      
-      if (possessionsOfType.length > 0) {
-        ({ page: currentPage, yOffset } = checkNewPage(yOffset, 3));
-
-        yOffset = writeText(currentPage, `${letter}. ${type.toUpperCase()}`, {
-          y: yOffset,
-          font: timesBold
-        });
+  
+      formData.executors?.forEach((executor, index) => {
+        const executorText = `I HEREBY APPOINT ${executor.name || ''}, my ${executor.relationship || ''}, ${executor.occupation || ''}, of ${executor.address || ''}, in the parish of ${executor.parish || ''}${index < formData.executors.length - 1 ? ' AND' : ''}`;
+        yOffset = writeText(page, executorText, { y: yOffset, lineSpacing: 1.5 });
         yOffset -= 20;
-
-        possessionsOfType.forEach((possession, index) => {
-          // Check page space for new possession
-          if (yOffset < 150) {
-            ({ page: currentPage, yOffset } = addPage(3));
-          }
-
-          const romanNumeral = ['i', 'ii', 'iii'][index] || `${index + 1}`;
-          const formattedText = formatPossessionForPDF(possession);
-
-          yOffset = writeText(currentPage, `${romanNumeral}. ${formattedText}`, {
+      });
+  
+      yOffset = writeText(page, 'to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', {
+        y: yOffset,
+        lineSpacing: 1.5
+      });
+      yOffset -= 30;
+  
+      // Section 3 - Debts
+      yOffset = writeText(page, '3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral, tombing and testamentary expenses.', {
+        y: yOffset,
+        lineSpacing: 1.5
+      });
+      yOffset -= 30;
+  
+      // Section 4 - Funeral Arrangements
+      ({ page: currentPage, yOffset } = checkNewPage(yOffset, 2));
+  
+      yOffset = writeText(currentPage, '4. FUNERAL AND BURIAL ARRANGEMENTS', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 20;
+  
+      yOffset = writeText(currentPage, 'I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that my funeral expenses and any debts be paid out of my estate, along with the following:', {
+        y: yOffset,
+        lineSpacing: 1.5
+      });
+      yOffset -= 25;
+  
+      // Funeral Details
+      [
+        `a. That I be ${formData.funeralDetails || ''}`,
+        `b. That be clothed in ${formData.clothingDetails || ''}`,
+        `c. That my remains be placed ${formData.remainsDetails || ''}`,
+        'd. That the following songs be included in my funeral programme',
+        'e. That the following song is played at my wedding-'
+      ].forEach(detail => {
+        yOffset = writeText(currentPage, detail, {
+          y: yOffset,
+          lineSpacing: 1.5
+        });
+        yOffset -= 15;
+      });
+  
+      // Songs
+      formData.songs?.forEach(song => {
+        yOffset = writeText(currentPage, `- ${song}`, {
+          y: yOffset,
+          indent: 1,
+          lineSpacing: 1.5
+        });
+        yOffset -= 15;
+      });
+  
+      // Section 5 - Possessions
+      ({ page: currentPage, yOffset } = addPage(3));
+  
+      yOffset = writeText(currentPage, '5. I GIVE DEVISE AND BEQUEATH:', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 25;
+  
+      // Group possessions by type
+      const possessionTypes = {
+        'Property': 'a',
+        'Shares and Stocks': 'b',
+        'Insurance': 'c',
+        'Bank Accounts': 'd',
+        'Motor Vehicle': 'e',
+        'Unpaid Salary': 'f',
+        'NHT Contributions': 'g',
+        'Jewellery': 'h',
+        'Furniture': 'i',
+        'Paintings': 'j',
+        'Firearm': 'k'
+      };
+  
+      // Write possessions
+      Object.entries(possessionTypes).forEach(([type, letter]) => {
+        const possessionsOfType = formData.possessions.filter(p => p.type === type);
+        
+        if (possessionsOfType.length > 0) {
+          ({ page: currentPage, yOffset } = checkNewPage(yOffset, 3));
+  
+          yOffset = writeText(currentPage, `${letter}. ${type.toUpperCase()}`, {
             y: yOffset,
-            indent: 1,
-            lineSpacing: 1.5
+            font: timesBold
           });
-          yOffset -= 25;
-
-          // Add detailed beneficiary information if using multiple beneficiaries
-          if (possession.beneficiaries?.length > 0) {
-            yOffset -= 10;
-            
-            if (yOffset < 150) {
-              ({ page: currentPage, yOffset } = addPage(3));
-            }
-
-            possession.beneficiaries.forEach((beneficiary, benIndex) => {
-              if (yOffset < 150) {
-                ({ page: currentPage, yOffset } = addPage(3));
-              }
-
-              const beneficiaryText = `   • ${beneficiary.fullName} ` +
-                                    `(${beneficiary.type}${beneficiary.relationship ? `, ${beneficiary.relationship}` : ''}) - ` +
-                                    `${beneficiary.sharePercentage}% share`;
-
-              yOffset = writeText(currentPage, beneficiaryText, {
-                y: yOffset,
-                indent: 2,
-                lineSpacing: 1.2,
-                size: 11
-              });
-              yOffset -= 15;
-            });
-
-            // Add total share calculation
-            const totalShare = possession.beneficiaries.reduce(
-              (sum, ben) => sum + (parseFloat(ben.sharePercentage) || 0),
-              0
-            );
-
-            if (yOffset < 150) {
-              ({ page: currentPage, yOffset } = addPage(3));
-            }
-
-            yOffset = writeText(currentPage, `   Total Share: ${totalShare}%`, {
+          yOffset -= 20;
+  
+          possessionsOfType.forEach((possession, index) => {
+            const romanNumeral = ['i', 'ii', 'iii'][index] || `${index + 1}`;
+            const formattedText = formatPossessionForPDF(possession);
+  
+            yOffset = writeText(currentPage, `${romanNumeral}. ${formattedText}`, {
               y: yOffset,
-              indent: 2,
-              lineSpacing: 1.2,
-              size: 11,
-              font: timesBold
+              indent: 1,
+              lineSpacing: 1.5
             });
             yOffset -= 25;
-          }
-        });
-      }
-    });
-
-
-    // Keep all remaining sections exactly as they are
-    // Section 6 - Residual Estate
-    
-
-    // Section 6 - Residual Estate
-    ({ page: currentPage, yOffset } = addPage(4));
+          });
+        }
+      });
   
-    yOffset = writeText(currentPage, '6. RESIDUAL ESTATE', {
-      y: yOffset,
-      font: timesBold
-    });
-    yOffset -= 20;
-
-    yOffset = writeText(currentPage, `I give, devise and bequeath all the rest, residue and remainder of my estate, including any proceeds from the sale of assets to ${formData.residualEstate?.beneficiaries?.join(', ') || ''} in equal shares.`, {
-      y: yOffset,
-      lineSpacing: 1.5
-    });
-    yOffset -= 40;
-
-    // Signature Section
-    yOffset = writeText(currentPage, 'IN WITNESS WHEREOF I have hereunto set my hand and seal this ………day of ………. 20', {
-      y: yOffset
-    });
-    yOffset -= 40;
-
-
-    // ... your existing residual estate code ...
-
-    // Witness Section (keep exactly as is)
-    yOffset = writeText(currentPage, 'WITNESSES', {
-      y: yOffset,
-      font: timesBold,
-      size: 16
-    });
-    yOffset -= 40;
-
-     // Witness Section
-     yOffset = writeText(currentPage, 'WITNESSES', {
-      y: yOffset,
-      font: timesBold,
-      size: 16
-    });
-    yOffset -= 40;
-
-    // Add "Witnesses to sign here" with vertical line
-    const startY = yOffset;
-    writeText(currentPage, 'Witnesses', { y: yOffset, x: 50 });
-    yOffset -= 15;
-    writeText(currentPage, 'to sign', { y: yOffset, x: 50 });
-    yOffset -= 15;
-    writeText(currentPage, 'here.', { y: yOffset, x: 50 });
-
-    // Draw vertical line
-    currentPage.drawLine({
-      start: { x: 110, y: startY + 20 },
-      end: { x: 110, y: yOffset - 10 },
-      thickness: 1,
-      color: rgb(0, 0, 0)
-    });
-
-    // Two-column witness layout
-    const columns = [
-      { x: 130, width: 250 },
-      { x: 430, width: 250 }
-    ];
-
-    formData.witnesses?.forEach((witness, index) => {
-      const column = columns[index];
-      let localY = startY;
-
-      // Name and Signature
-      writeText(currentPage, 'Name and', {
-        y: localY,
-        x: column.x,
+      // Section 6 - Residual Estate
+      ({ page: currentPage, yOffset } = addPage(4));
+  
+      yOffset = writeText(currentPage, '6. RESIDUAL ESTATE', {
+        y: yOffset,
         font: timesBold
       });
-      localY -= 20;
-      
-      writeText(currentPage, 'Signature:', {
-        y: localY,
-        x: column.x,
-        font: timesBold
+      yOffset -= 20;
+  
+      yOffset = writeText(currentPage, `I give, devise and bequeath all the rest, residue and remainder of my estate, including any proceeds from the sale of assets to ${formData.residualEstate?.beneficiaries?.join(', ') || ''} in equal shares.`, {
+        y: yOffset,
+        lineSpacing: 1.5
       });
-
-      // Draw dotted line
-      drawDottedLine(currentPage, column.x + 80, localY, 200);
+      yOffset -= 40;
+  
+      // Signature Section
+      yOffset = writeText(currentPage, 'IN WITNESS WHEREOF I have hereunto set my hand and seal this ………day of ………. 20', {
+        y: yOffset
+      });
+      yOffset -= 40;
+  
+      // Witness Section
+      yOffset = writeText(currentPage, 'WITNESSES', {
+        y: yOffset,
+        font: timesBold,
+        size: 16
+      });
+      yOffset -= 40;
+  
+      // Add "Witnesses to sign here" with vertical line
+      const startY = yOffset;
+      writeText(currentPage, 'Witnesses', { y: yOffset, x: 50 });
+      yOffset -= 15;
+      writeText(currentPage, 'to sign', { y: yOffset, x: 50 });
+      yOffset -= 15;
+      writeText(currentPage, 'here.', { y: yOffset, x: 50 });
+  
+      // Draw vertical line
+      currentPage.drawLine({
+        start: { x: 110, y: startY + 20 },
+        end: { x: 110, y: yOffset - 10 },
+        thickness: 1,
+        color: rgb(0, 0, 0)
+      });
+  
+      // Two-column witness layout
+      const columns = [
+        { x: 130, width: 250 },
+        { x: 430, width: 250 }
+      ];
+  
+      formData.witnesses?.forEach((witness, index) => {
+        const column = columns[index];
+        let localY = startY;
+  
+        // Name and Signature
+        writeText(currentPage, 'Name and', {
+          y: localY,
+          x: column.x,
+          font: timesBold
+        });
+        localY -= 20;
+        
+        writeText(currentPage, 'Signature:', {
+          y: localY,
+          x: column.x,
+          font: timesBold
+        });
+  
+        // Draw dotted line
+        drawDottedLine(currentPage, column.x + 80, localY, 200);
+        
+        if (witness.name) {
+          writeText(currentPage, witness.name, {
+            y: localY,
+            x: column.x + 80
+          });
+        }
+  
+        localY -= 40;
+  
+        // Address
+        writeText(currentPage, 'Address:', {
+          y: localY,
+          x: column.x,
+          font: timesBold
+        });
+  
+        drawDottedLine(currentPage, column.x + 80, localY, 200);
+        // Continuing from where we left off (Address section)...
       
-      if (witness.name) {
-        writeText(currentPage, witness.name, {
+      if (witness.address || witness.parish) {
+        const fullAddress = [witness.address, witness.parish].filter(Boolean).join(', ');
+        writeText(currentPage, fullAddress, {
           y: localY,
           x: column.x + 80
         });
@@ -1999,46 +1573,24 @@ const formatPossessionDetails = (type, item) => {
 
       localY -= 40;
 
-      // Address
-      writeText(currentPage, 'Address:', {
+      // Occupation
+      writeText(currentPage, 'Occupation:', {
         y: localY,
         x: column.x,
         font: timesBold
       });
 
       drawDottedLine(currentPage, column.x + 80, localY, 200);
-      // Continuing from where we left off (Address section)...
-    
-    if (witness.address || witness.parish) {
-      const fullAddress = [witness.address, witness.parish].filter(Boolean).join(', ');
-      writeText(currentPage, fullAddress, {
-        y: localY,
-        x: column.x + 80
-      });
-    }
-
-    localY -= 40;
-
-    // Occupation
-    writeText(currentPage, 'Occupation:', {
-      y: localY,
-      x: column.x,
-      font: timesBold
+      
+      if (witness.occupation) {
+        writeText(currentPage, witness.occupation, {
+          y: localY,
+          x: column.x + 80
+        });
+      }
     });
 
-    drawDottedLine(currentPage, column.x + 80, localY, 200);
-    
-    if (witness.occupation) {
-      writeText(currentPage, witness.occupation, {
-        y: localY,
-        x: column.x + 80
-      });
-    }
-  });
-
-    // ... rest of your existing witness section code ...
-
-    // Final Declaration (keep exactly as is)
+    // Final Declaration
     yOffset -= 100;
     yOffset = writeText(currentPage, 'executed this Last will and testament willingly and in the presence of the following witnesses, who are present at the same time and who have signed as witnesses in my presence:', {
       y: yOffset,
@@ -2054,10 +1606,6 @@ const formatPossessionDetails = (type, item) => {
     throw error;
   }
 };
-
-  
-
-
 
 // Helper function to handle PDF download
 const handleGeneratePDF = async () => {
@@ -2077,6 +1625,7 @@ const handleGeneratePDF = async () => {
     alert('Error generating PDF. Please try again.');
   }
 };
+
   // When adding a possession
 const handleAddPossession = (type) => {
   const newPossession = {
@@ -2425,24 +1974,7 @@ const handleInputChange = (e, section, field, index = null) => {
                 ))}
               </div>
             </div>
-            <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2">Living Grandchildren</label>
-              <div className="flex space-x-4">
-                {['Yes', 'No'].map((option) => (
-                  <label key={option} className="inline-flex items-center">
-                    <input
-                      type="radio"
-                      className="form-radio"
-                      name="livingGrandchildren"
-                      value={option.toLowerCase()}
-                      checked={formData.livingGrandchildren === option.toLowerCase()}
-                      onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
-                    />
-                    <span className="ml-2">{option}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            
           </section>
         );
       case 4:
@@ -2990,7 +2522,179 @@ const handleInputChange = (e, section, field, index = null) => {
                   )}
                 </section>
               );
-      case 9:
+
+              case 9: // After children identification
+              return (
+                <section className="space-y-6">
+                  <h2 className="text-2xl font-semibold">Identify Grandchildren</h2>
+                  
+                  <div className="mb-4">
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Do you have living grandchildren?
+                    </label>
+                    <div className="flex space-x-4">
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          name="livingGrandchildren"
+                          value="yes"
+                          checked={formData.livingGrandchildren === 'yes'}
+                          onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
+                          className="form-radio"
+                        />
+                        <span className="ml-2">Yes</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          name="livingGrandchildren"
+                          value="no"
+                          checked={formData.livingGrandchildren === 'no'}
+                          onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
+                          className="form-radio"
+                        />
+                        <span className="ml-2">No</span>
+                      </label>
+                    </div>
+                  </div>
+      
+                  {formData.livingGrandchildren === 'yes' && (
+                    <div className="space-y-6">
+                      <p className="text-gray-600">
+                        Identifying all of your grandchildren is optional. It allows you to choose them later
+                        in this wizard if you decide to leave them some of your assets. If you do not plan
+                        on leaving anything specific to your grandchildren, you can simply skip this page.
+                      </p>
+      
+                      {formData.grandchildren.map((grandchild, index) => (
+                        <div key={index} className="p-6 border rounded-lg shadow-sm space-y-4">
+                          <h3 className="text-xl font-semibold">Grandchild {index + 1}</h3>
+                          
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">
+                              Grandchild's Full Name
+                            </label>
+                            <input
+                              type="text"
+                              value={grandchild.fullName}
+                              onChange={(e) => handleInputChange(e, 'grandchildren', 'fullName', index)}
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+      
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">Relationship</label>
+                            <div className="space-x-4">
+                              <label className="inline-flex items-center">
+                                <input
+                                  type="radio"
+                                  name={`relationship-${index}`}
+                                  value="grandson"
+                                  checked={grandchild.relationship === 'grandson'}
+                                  onChange={(e) => handleInputChange(e, 'grandchildren', 'relationship', index)}
+                                  className="mr-2"
+                                />
+                                Grand Son
+                              </label>
+                              <label className="inline-flex items-center">
+                                <input
+                                  type="radio"
+                                  name={`relationship-${index}`}
+                                  value="granddaughter"
+                                  checked={grandchild.relationship === 'granddaughter'}
+                                  onChange={(e) => handleInputChange(e, 'grandchildren', 'relationship', index)}
+                                  className="mr-2"
+                                />
+                                Grand Daughter
+                              </label>
+                            </div>
+                          </div>
+      
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">
+                              Date of Birth
+                            </label>
+                            <input
+                              type="date"
+                              value={grandchild.dateOfBirth}
+                              onChange={(e) => handleInputChange(e, 'grandchildren', 'dateOfBirth', index)}
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+      
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              value={grandchild.email}
+                              onChange={(e) => handleInputChange(e, 'grandchildren', 'email', index)}
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+      
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">
+                              Occupation
+                            </label>
+                            <input
+                              type="text"
+                              value={grandchild.occupation}
+                              onChange={(e) => handleInputChange(e, 'grandchildren', 'occupation', index)}
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+      
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">
+                              Address
+                            </label>
+                            <input
+                              type="text"
+                              value={grandchild.address}
+                              onChange={(e) => handleInputChange(e, 'grandchildren', 'address', index)}
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+      
+                          <div>
+                            <label className="block text-gray-700 font-medium mb-2">
+                              Parish
+                            </label>
+                            <input
+                              type="text"
+                              value={grandchild.parish}
+                              onChange={(e) => handleInputChange(e, 'grandchildren', 'parish', index)}
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+      
+                          <button
+                            type="button"
+                            onClick={() => removeGrandchild(index)}
+                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                          >
+                            Remove Grandchild
+                          </button>
+                        </div>
+                      ))}
+      
+                      <button
+                        type="button"
+                        onClick={addGrandchild}
+                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                      >
+                        Add Grandchild
+                      </button>
+                    </div>
+                  )}
+                </section>
+              );
+
+
+                
+      case 10:
         return (
           <section className="space-y-6">
           <h2 className="text-2xl font-semibold mb-4">Executors and Witnesses</h2>
@@ -3042,7 +2746,7 @@ const handleInputChange = (e, section, field, index = null) => {
         );
         
          
-      case 10:
+      case 11:
         return (
             <section>
             <h2 className="text-2xl font-semibold mb-4">Funeral Arrangements</h2>
@@ -3058,7 +2762,7 @@ const handleInputChange = (e, section, field, index = null) => {
 
         
 
-      case 11:
+      case 17:
         return renderAddPossessions(
             <section>
             <h2 className="text-2xl font-semibold mb-4">Add Your Possessions</h2>
@@ -3291,7 +2995,14 @@ const handleInputChange = (e, section, field, index = null) => {
       </button>
     </section>
         );
+
+
+        
+
+           
+         
   
+
         case 20:
             return(
               <section className="space-y-6">
