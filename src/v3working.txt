@@ -471,3 +471,13 @@ const WillGenerator = () => {
 };
 
 export default WillGenerator;
+
+
+const handleAddPossession = () => {
+  const newPossession = createEmptyPossession(formData.selectedPossession);
+  setFormData(prev => ({
+    ...prev,
+    possessions: [...prev.possessions, newPossession],
+    selectedPossession: '' // Reset selection after adding
+  }));
+};

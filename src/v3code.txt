@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+  import React, { useState } from 'react';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 const WillGenerator = () => {
@@ -986,7 +986,7 @@ const formatPossessionDetails = (type, item) => {
         const words = text.split(' ');
         let line = '';
         let yPos = y;
-        const actualX = x + (indent * 20);
+        const actualX = x + (indent * 20); // 20 points per indent level
   
         words.forEach(word => {
           const testLine = line ? `${line} ${word}` : word;
@@ -1008,7 +1008,7 @@ const formatPossessionDetails = (type, item) => {
         return yPos - (size + 2);
       };
   
-      // Check if we need a new page
+      // Check if we need a new page based on remaining space
       const checkNewPage = (currentYOffset, neededSpace = 100) => {
         if (currentYOffset < neededSpace) {
           return addPage();
@@ -1078,7 +1078,7 @@ const formatPossessionDetails = (type, item) => {
         `a. That I be ${formData.funeralDetails || ''}`,
         `b. That be clothed in ${formData.clothingDetails || ''}`,
         `c. That my remains be placed ${formData.remainsDetails || ''}`,
-        'd. That the following songs be included in my funeral programme'
+        'd. That the following songs be included in my funeral programme:'
       ];
   
       funeralDetails.forEach(detail => {
@@ -1091,72 +1091,55 @@ const formatPossessionDetails = (type, item) => {
         yOffset -= 10;
       });
   
-      // Possessions Section
+      // Possessions
       ({ page: currentPage, yOffset } = checkNewPage(yOffset));
   
-      yOffset = writeText(currentPage, '5. I GIVE DEVISE AND BEQUEATH:', {
+      yOffset = writeText(currentPage, '4. POSSESSIONS', {
         y: yOffset,
         font: timesBold
       });
       yOffset -= 20;
   
-      // Define possession types in order
+      // Handle each possession type
       const possessionTypes = {
-        'Property': 'a. PROPERTY',
-        'Shares and Stocks': 'b. SHARES AND STOCKS',
-        'Insurance': 'c. INSURANCE',
-        'Bank Accounts': 'd. BANK ACCOUNTS',
-        'Motor Vehicle': 'e. MOTOR VEHICLE',
-        'Unpaid Salary': 'f. UNPAID SALARY',
-        'NHT Contributions': 'g. NHT CONTRIBUTIONS',
-        'Jewellery': 'h. JEWELLERY',
-        'Furniture': 'i. FURNITURE',
-        'Paintings': 'j. PAINTINGS',
-        'Firearm': 'k. FIREARM'
+        properties: 'a. PROPERTY',
+        shares: 'b. SHARES AND STOCKS',
+        insurance: 'c. INSURANCE',
+        bankAccounts: 'd. BANK ACCOUNTS',
+        vehicles: 'e. MOTOR VEHICLE',
+        salary: 'f. UNPAID SALARY',
+        nht: 'g. NHT CONTRIBUTIONS',
+        jewellery: 'h. JEWELLERY',
+        furniture: 'i. FURNITURE',
+        paintings: 'j. PAINTINGS',
+        firearm: 'k. FIREARM'
       };
   
-      // Group possessions by type
-      const possessionsByType = formData.possessions.reduce((acc, possession) => {
-        if (!acc[possession.type]) {
-          acc[possession.type] = [];
-        }
-        acc[possession.type].push(possession);
-        return acc;
-      }, {});
-  
-      // Write each possession type in order
-      Object.entries(possessionTypes).forEach(([type, header]) => {
-        const possessions = possessionsByType[type];
-        if (possessions?.length > 0) {
+      Object.entries(formData.possessions || {}).forEach(([type, items]) => {
+        if (Array.isArray(items) && items.length > 0) {
           ({ page: currentPage, yOffset } = checkNewPage(yOffset));
-  
-          yOffset = writeText(currentPage, header, {
+          
+          yOffset = writeText(currentPage, possessionTypes[type], {
             y: yOffset,
             font: timesBold
           });
-          yOffset -= 15;
-  
-          possessions.forEach((possession, index) => {
-            const details = formatPossessionDetails(type, possession);
-            
-            details.forEach((detail) => {
-              const romanNumeral = ['i', 'ii', 'iii', 'iv', 'v'][index] || (index + 1).toString();
-              yOffset = writeText(currentPage, `${romanNumeral}. ${detail}`, {
-                y: yOffset,
-                indent: 1
-              });
-              yOffset -= 15;
-            });
-          });
-  
           yOffset -= 10;
+  
+          items.forEach((item, index) => {
+            const details = formatPossessionDetails(type, item);
+            details.forEach(line => {
+              yOffset = writeText(currentPage, line, { y: yOffset, indent: 1 });
+              yOffset -= 10;
+            });
+            yOffset -= 10;
+          });
         }
       });
   
       // Residual Estate
       ({ page: currentPage, yOffset } = checkNewPage(yOffset));
   
-      yOffset = writeText(currentPage, '6. RESIDUAL ESTATE', {
+      yOffset = writeText(currentPage, '5. RESIDUAL ESTATE', {
         y: yOffset,
         font: timesBold
       });
@@ -1167,20 +1150,15 @@ const formatPossessionDetails = (type, item) => {
       });
       yOffset -= 20;
   
-      // Signature Section
+      // Witnesses
       ({ page: currentPage, yOffset } = checkNewPage(yOffset, 200));
   
-      const currentDate = new Date();
-      const day = currentDate.getDate();
-      const month = currentDate.toLocaleString('default', { month: 'long' });
-      const year = currentDate.getFullYear();
-  
-      yOffset = writeText(currentPage, `IN WITNESS WHEREOF I have hereunto set my hand and seal this ${day} day of ${month} ${year}`, {
+      yOffset = writeText(currentPage, 'IN WITNESS WHEREOF, I have hereunto set my hand this', {
         y: yOffset
       });
       yOffset -= 40;
   
-      // Testator signature
+      // Signature lines
       yOffset = writeText(currentPage, '____________________________', { y: yOffset });
       yOffset -= 10;
       yOffset = writeText(currentPage, 'Testator Signature', { y: yOffset, size: 10 });
@@ -1189,7 +1167,6 @@ const formatPossessionDetails = (type, item) => {
       yOffset = writeText(currentPage, 'WITNESSES:', { y: yOffset, font: timesBold });
       yOffset -= 20;
   
-      // Witness signature sections
       formData.witnesses?.forEach((witness, index) => {
         yOffset = writeText(currentPage, `Witness ${index + 1}:`, { y: yOffset });
         yOffset -= 10;
@@ -1689,29 +1666,6 @@ const handleInputChange = (e, section, field, index = null) => {
                   className="w-full p-2 border rounded"
                 />
               </div>
-
-              <div>
-            <label className="block text-gray-700 font-medium mb-2">Address</label>
-            <input
-              type="text"
-              value={child.address || ''}
-              onChange={(e) => handleInputChange(e, 'children', 'address', index)}
-              className="w-full p-2 border rounded"
-              placeholder="Enter address"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Parish</label>
-            <input
-              type="text"
-              value={child.parish || ''}
-              onChange={(e) => handleInputChange(e, 'children', 'parish', index)}
-              className="w-full p-2 border rounded"
-              placeholder="Enter parish"
-            />
-          </div>
-
 
               <button
                 type="button"

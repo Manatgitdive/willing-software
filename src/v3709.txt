@@ -746,3 +746,553 @@ const handleInputChange = (e, section, field, index = null) => {
       }
     });
   };
+
+
+
+
+  export const generatePDF = async (formData) => {
+  const pdfDoc = await PDFDocument.create();
+  const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+
+  // Helper function to add a new page
+  const addPage = () => {
+    const page = pdfDoc.addPage([612, 792]); // US Letter size
+    
+    // Add header with page numbers and signature spaces
+    page.drawText(`Page - ${pdfDoc.getPageCount()} - of 5`, {
+      x: 50,
+      y: 750,
+      size: 12,
+      font: timesRoman
+    });
+
+    // Add signature lines
+    page.drawText("(Please insert Testator's signature here)", {
+      x: 50,
+      y: 730,
+      size: 10,
+      font: timesRoman
+    });
+
+    page.drawText("(Please insert Witness #1's signature here)", {
+      x: 250,
+      y: 730,
+      size: 10,
+      font: timesRoman
+    });
+
+    page.drawText("(Please insert Witness #2's signature here)", {
+      x: 450,
+      y: 730,
+      size: 10,
+      font: timesRoman
+    });
+
+    return { page, yOffset: 700 };
+  };
+
+  // Helper function to write text with proper formatting
+  const writeText = (page, text, options = {}) => {
+    const {
+      x = 50,
+      y,
+      size = 12,
+      font = timesRoman,
+      color = rgb(0, 0, 0),
+      maxWidth = 500,
+      indent = 0
+    } = options;
+
+    const words = text.split(' ');
+    let line = '';
+    let yPos = y;
+    const actualX = x + (indent * 20); // 20 points per indent level
+
+    words.forEach(word => {
+      const testLine = line ? `${line} ${word}` : word;
+      const width = font.widthOfTextAtSize(testLine, size);
+
+      if (width > maxWidth && line) {
+        page.drawText(line, { x: actualX, y: yPos, size, font, color });
+        line = word;
+        yPos -= size + 2;
+      } else {
+        line = testLine;
+      }
+    });
+
+    if (line) {
+      page.drawText(line, { x: actualX, y: yPos, size, font, color });
+    }
+
+    return yPos - (size + 2);
+  };
+
+  // Check if we need a new page based on remaining space
+  const checkNewPage = (currentYOffset, neededSpace = 100) => {
+    if (currentYOffset < neededSpace) {
+      return addPage();
+    }
+    return { page, yOffset: currentYOffset };
+  };
+
+  // Start generating PDF content
+  let { page, yOffset } = addPage();
+
+  // Title
+  yOffset = writeText(page, 'LAST WILL AND TESTAMENT', {
+    y: yOffset,
+    size: 16,
+    font: timesBold
+  });
+  yOffset -= 20;
+
+  // Introduction
+  yOffset = writeText(page, `THIS IS THE LAST WILL AND TESTAMENT of me ${formData.testatorInfo.prefix} ${formData.testatorInfo.fullName} ${formData.testatorInfo.suffix}, a ${formData.testatorInfo.occupation} whose address is ${formData.testatorInfo.address} in the parish of ${formData.testatorInfo.parish}.`, {
+    y: yOffset
+  });
+  yOffset -= 20;
+
+  // Revocation clause
+  yOffset = writeText(page, '1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND DECLARE this to be my Last Will and Testament.', {
+    y: yOffset
+  });
+  yOffset -= 20;
+
+  // Executors
+  yOffset = writeText(page, '2. APPOINTMENT OF EXECUTORS', {
+    y: yOffset,
+    font: timesBold
+  });
+  yOffset -= 10;
+
+  formData.executors.forEach((executor, index) => {
+    const executorText = `I HEREBY APPOINT ${executor.fullName}, my ${executor.relationship}, ${executor.occupation}, of ${executor.address}, in the parish of ${executor.parish}${index < formData.executors.length - 1 ? ' AND' : ''}`;
+    yOffset = writeText(page, executorText, { y: yOffset });
+    yOffset -= 15;
+  });
+
+  yOffset = writeText(page, 'to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', {
+    y: yOffset
+  });
+  yOffset -= 20;
+
+  // Debts and Expenses
+  yOffset = writeText(page, '3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral, tombing and testamentary expenses.', {
+    y: yOffset
+  });
+  yOffset -= 20;
+
+  // Check for new page
+  ({ page, yOffset } = checkNewPage(yOffset));
+
+  // Funeral Arrangements
+  yOffset = writeText(page, '4. FUNERAL AND BURIAL ARRANGEMENTS', {
+    y: yOffset,
+    font: timesBold
+  });
+  yOffset -= 10;
+
+  yOffset = writeText(page, 'I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that my funeral expenses and any debts be paid out of my estate, along with the following:', {
+    y: yOffset
+  });
+  yOffset -= 20;
+
+  // Funeral details
+  const funeralDetails = [
+    `a. That I be ${formData.funeralArrangements.details}`,
+    `b. That be clothed in ${formData.funeralArrangements.clothing}`,
+    `c. That my remains be placed ${formData.funeralArrangements.remains}`,
+    'd. That the following songs be included in my funeral programme',
+    'e. That the following songs be played at my funeral-'
+  ];
+
+  funeralDetails.forEach(detail => {
+    yOffset = writeText(page, detail, { y: yOffset });
+    yOffset -= 15;
+  });
+
+  formData.funeralArrangements.songs.forEach(song => {
+    yOffset = writeText(page, `- ${song}`, { y: yOffset, indent: 1 });
+    yOffset -= 10;
+  });
+
+  // Check for new page
+  ({ page, yOffset } = checkNewPage(yOffset));
+
+  // Possessions
+  yOffset = writeText(page, '5. I GIVE DEVISE AND BEQUEATH:', {
+    y: yOffset,
+    font: timesBold
+  });
+  yOffset -= 20;
+
+  // Properties
+  if (formData.possessions.properties.length > 0) {
+    yOffset = writeText(page, 'a. PROPERTY', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    formData.possessions.properties.forEach((property, index) => {
+      const suffix = index === 0 ? 'st' : index === 1 ? 'nd' : 'rd';
+      yOffset = writeText(page, `${index + 1}${suffix} Property- situate at ${property.address}, in the parish of ${property.parish} registered at ${property.volume} and ${property.folio} of the Register Book of Titles to ${property.beneficiary}.`, {
+        y: yOffset,
+        indent: 1
+      });
+      yOffset -= 15;
+    });
+  }
+
+  // Shares and Stocks
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  if (formData.possessions.shares.length > 0) {
+    yOffset = writeText(page, 'b. SHARES AND STOCKS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    formData.possessions.shares.forEach((share, index) => {
+      yOffset = writeText(page, `${index + 1}. Shares in ${share.company} held in ${share.country} at ${share.exchange} in account numbered ${share.accountNumber} to ${share.beneficiary} of ${share.beneficiaryAddress}.`, {
+        y: yOffset,
+        indent: 1
+      });
+      yOffset -= 15;
+    });
+  }
+
+  // Insurance
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  if (formData.possessions.insurance.length > 0) {
+    yOffset = writeText(page, 'c. INSURANCE', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    formData.possessions.insurance.forEach((policy, index) => {
+      yOffset = writeText(page, `${index === 0 ? 'i' : 'j'}. Proceeds of insurance policy numbered ${policy.policyNumber}, held at ${policy.company} located at ${policy.address}, ${policy.country} to ${policy.beneficiary}.`, {
+        y: yOffset,
+        indent: 1
+      });
+      yOffset -= 15;
+    });
+  }
+
+  // Bank Accounts
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  if (formData.possessions.bankAccounts.length > 0) {
+    yOffset = writeText(page, 'd. BANK ACCOUNTS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    formData.possessions.bankAccounts.forEach((account, index) => {
+      yOffset = writeText(page, `${index + 1}. Proceeds of bank account numbered ${account.accountNumber}, held at ${account.bank} located at ${account.address}, ${account.country} to ${account.beneficiary} of ${account.beneficiaryAddress}.`, {
+        y: yOffset,
+        indent: 1
+      });
+      yOffset -= 15;
+    });
+  }
+
+  // Motor Vehicles
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  if (formData.possessions.vehicles.length > 0) {
+    yOffset = writeText(page, 'e. MOTOR VEHICLE', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    formData.possessions.vehicles.forEach((vehicle, index) => {
+      yOffset = writeText(page, `${index + 1}. ${vehicle.color} ${vehicle.make} ${vehicle.model} Motor vehicle bearing Licence plate number ${vehicle.licensePlate} and engine and chassis numbers ${vehicle.engineNumber} and ${vehicle.chassisNumber} to ${vehicle.beneficiary} of ${vehicle.beneficiaryAddress}.`, {
+        y: yOffset,
+        indent: 1
+      });
+      yOffset -= 15;
+    });
+  }
+
+  // Unpaid Salary
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  if (formData.possessions.salary.employer) {
+    yOffset = writeText(page, 'f. UNPAID SALARY AND/EMOLUMENTS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    yOffset = writeText(page, `Unpaid salary and/or emoluments with my employer, ${formData.possessions.salary.employer} located at ${formData.possessions.salary.address} to ${formData.possessions.salary.beneficiary}.`, {
+      y: yOffset
+    });
+    yOffset -= 20;
+  }
+
+  // NHT Contributions
+  if (formData.possessions.nht.number) {
+    yOffset = writeText(page, 'g. NATIONAL HOUSING TRUST(NHT) CONTRIBUTIONS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+
+    yOffset = writeText(page, `Refund of National Housing Trust Contributions ${formData.possessions.nht.number} and ${formData.possessions.nht.tax} to ${formData.possessions.nht.beneficiary}.`, {
+      y: yOffset
+    });
+    yOffset -= 20;
+  }
+
+  // Other possessions
+  const otherPossessions = [
+    { key: 'jewellery', title: 'h. JEWELLERY', prefix: 'described as my Jewellery to' },
+    { key: 'furniture', title: 'i. FURNITURE', prefix: 'Furniture to' },
+    { key: 'paintings', title: 'j. PAINTINGS', prefix: 'Paintings to' },
+    { key: 'firearm', title: 'k. FIREARM', prefix: 'Firearm bearing serial and firearm licence numbers' }
+  ];
+
+  otherPossessions.forEach(possession => {
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    const possessionData = formData.possessions[possession.key];
+    if (possessionData.beneficiary) {
+      yOffset = writeText(page, possession.title, {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+
+      if (possession.key === 'firearm') {
+        yOffset = writeText(page, `${possession.prefix} ${possessionData.serial} and ${possessionData.license} to ${possessionData.beneficiary}.`, {
+          y: yOffset
+        });
+      } else if (possession.key === 'jewellery') {
+        yOffset = writeText(page, `${possessionData.description} ${possession.prefix} ${possessionData.beneficiary}.`, {
+          y: yOffset
+        });
+      } else {
+        yOffset = writeText(page, `${possession.prefix} ${possessionData.beneficiary}.`, {
+          y: yOffset
+        });
+      }
+      yOffset -= 20;
+    }
+  });
+
+  // Residual Estate
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  yOffset = writeText(page, '6. RESIDUAL ESTATE', {
+    y: yOffset,
+    font: timesBold
+  });
+  yOffset -= 10;
+
+  yOffset = writeText(page, `I give, devise and bequeath all the rest, residue and remainder of my estate, including any proceeds from the sale of assets to ${formData.residualEstate.beneficiaries.join(', ')} in equal shares.`, {
+    y: yOffset
+  });
+  yOffset -= 20;
+
+  // Signature section
+  ({ page, yOffset } = checkNewPage(yOffset));
+  
+  const currentDate = new Date();
+  yOffset = writeText(page, `IN WITNESS WHEREOF I have hereunto set my hand and seal this ${currentDate.getDate()} day of ${currentDate.toLocaleString('default', { month: 'long' })} ${currentDate.getFullYear()}`, {
+    y: yOffset
+  });
+  yOffset -= 40;
+
+  yOffset = writeText(page, '____________________________', {
+    y: yOffset
+  });
+  yOffset -= 10;
+  yOffset = writeText(page, '(Testator to sign here)', {
+    y: yOffset,
+    size: 10
+  });
+  yOffset -= 20;
+
+  // Witnesses section
+  ({ page, yOffset } = checkNewPage(yOffset, 200)); // Ensure enough space for witness section
+  
+  yOffset = writeText(page, 'WITNESSES', {
+    y: yOffset,
+    font: timesBold
+  });
+  yOffset -= 20;
+
+  formData.witnesses.forEach((witness, index) => {
+    yOffset = writeText(page, 'Name and', {
+      y: yOffset
+    });
+    yOffset -= 10;
+
+    yOffset = writeText(page, 'Signature: ____________________________', {
+      y: yOffset
+    });
+    yOffset -= 10;
+
+    yOffset = writeText(page, witness.fullName, {
+      y: yOffset,
+      color: rgb(0, 0, 0.8) // Slightly blue to indicate filled information
+    });
+    yOffset -= 15;
+
+    yOffset = writeText(page, 'Address:', {
+      y: yOffset
+    });
+    yOffset -= 10;
+
+    yOffset = writeText(page, witness.address, {
+      y: yOffset,
+      color: rgb(0, 0, 0.8)
+    });
+    yOffset -= 15;
+
+    yOffset = writeText(page, 'Occupation:', {
+      y: yOffset
+    });
+    yOffset -= 10;
+
+    yOffset = writeText(page, witness.occupation, {
+      y: yOffset,
+      color: rgb(0, 0, 0.8)
+    });
+    yOffset -= 20;
+
+    // Add space between witnesses
+    if (index < formData.witnesses.length - 1) {
+      yOffset -= 20;
+    }
+  });
+
+  yOffset -= 20;
+  yOffset = writeText(page, 'Witnesses', {
+    y: yOffset
+  });
+  yOffset -= 10;
+  yOffset = writeText(page, 'to sign', {
+    y: yOffset
+  });
+  yOffset -= 10;
+  yOffset = writeText(page, 'here.', {
+    y: yOffset
+  });
+
+  // Final declaration
+  ({ page, yOffset } = checkNewPage(yOffset, 150));
+  
+  yOffset = writeText(page, `SIGNED by the Testator the said ${formData.testatorInfo.fullName}, a ${formData.testatorInfo.occupation} of ${formData.testatorInfo.address}, in the parish of ${formData.testatorInfo.parish}, as my Last Will and Testament I declare that I have signed and executed this Last Will and Testament willingly and in the presence of the following witnesses, who are present at the same time and who have signed as witnesses in my presence:`, {
+    y: yOffset
+  });
+
+  // Generate the final PDF
+  try {
+    const pdfBytes = await pdfDoc.save();
+    return { 
+      success: true, 
+      data: pdfBytes,
+      message: 'PDF generated successfully'
+    };
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to generate PDF'
+    };
+  }
+};
+
+// Helper function to download the generated PDF
+export const downloadPDF = async (formData) => {
+  try {
+    const result = await generatePDF(formData);
+    
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+
+    const blob = new Blob([result.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Last_Will_and_Testament_${formData.testatorInfo.fullName.replace(/\s+/g, '_')}.pdf`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    return {
+      success: true,
+      message: 'PDF downloaded successfully'
+    };
+  } catch (error) {
+    console.error('Error downloading PDF:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to download PDF'
+    };
+  }
+};
+
+// Helper function to validate the form data before generating PDF
+export const validateFormData = (formData) => {
+  const errors = [];
+
+  // Required fields validation
+  if (!formData.testatorInfo.fullName) {
+    errors.push('Testator name is required');
+  }
+
+  if (!formData.testatorInfo.occupation) {
+    errors.push('Testator occupation is required');
+  }
+
+  if (!formData.testatorInfo.address) {
+    errors.push('Testator address is required');
+  }
+
+  if (!formData.testatorInfo.parish) {
+    errors.push('Testator parish is required');
+  }
+
+  // Executor validation
+  if (!formData.executors.length) {
+    errors.push('At least one executor is required');
+  }
+
+  // Witness validation
+  if (formData.witnesses.length < 2) {
+    errors.push('Two witnesses are required');
+  }
+
+  // Validate all sections have beneficiaries assigned
+  const possessionTypes = Object.keys(formData.possessions);
+  possessionTypes.forEach(type => {
+    if (Array.isArray(formData.possessions[type])) {
+      formData.possessions[type].forEach((item, index) => {
+        if (item.beneficiary === undefined || item.beneficiary === '') {
+          errors.push(`Beneficiary required for ${type} item ${index + 1}`);
+        }
+      });
+    }
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+

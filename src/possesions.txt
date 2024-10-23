@@ -1,0 +1,2415 @@
+import React, { useState } from 'react';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import './index.css';
+
+const WillGenerator = () => {
+  const [formData, setFormData] = useState({
+    testatorName: '',
+    occupation: '',
+    address: '',
+    parish: '',
+    executor1: { name: '', relationship: '', occupation: '', address: '', parish: '' },
+    executor2: { name: '', relationship: '', occupation: '', address: '', parish: '' },
+    funeralDetails: '',
+    clothingDetails: '',
+    remainsDetails: '',
+    songs: ['', ''],
+    prefix: '',
+  suffix: '',
+  gender: '',
+  maritalStatus: '',
+  livingChildren: '',
+  livingGrandchildren: '',
+  spouse: { fullName: '', relation: '', occupation: '' },
+  children: [],
+  hasDeceasedFamilyMembers: '',
+  deceasedFamilyMembers: [],
+  selectedPossession: '',
+  properties: [],
+  shares: [],
+  insurance: [],
+  bankAccounts: [],
+  motorVehicles: [],
+  unpaidSalary: {},
+  nhtContributions: {},
+  jewellery: {},
+  furniture: {},
+  paintings: {},
+  firearm: {},
+  residualEstate: {},
+  beneficiaries: [], // Add this to store beneficiaries
+  bequests: [], // Add this to store bequests
+
+    // ... (existing fields)
+    otherBeneficiaries: 'none',
+    additionalBeneficiaries: [],
+    minorChildren: [],
+    executor1: { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+    executor2: { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+    executor3: { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+    witness1: { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+    witness2: { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+    // ... (rest of the existing fields)
+ 
+    properties: [
+      { address: '', parish: '', volume: '', folio: '', beneficiary: '' },
+      { address: '', parish: '', volume: '', folio: '', beneficiary: '' },
+      { address: '', parish: '', volume: '', folio: '', beneficiary: '' },
+    ],
+    shares: [
+      { company: '', country: '', exchange: '', accountNumber: '', beneficiary: '' },
+      { company: '', country: '', exchange: '', accountNumber: '', beneficiary: '' },
+    ],
+    insurance: [
+      { policyNumber: '', company: '', address: '', country: '', beneficiary: '' },
+      { policyNumber: '', company: '', address: '', country: '', beneficiary: '' },
+    ],
+    bankAccounts: [
+      { accountNumber: '', bank: '', address: '', country: '', beneficiary: '' },
+      { accountNumber: '', bank: '', address: '', country: '', beneficiary: '' },
+      { accountNumber: '', bank: '', address: '', country: '', beneficiary: '' },
+    ],
+    vehicles: [
+      { color: '', make: '', model: '', licensePlate: '', engineNumber: '', chassisNumber: '', beneficiary: '' },
+      { color: '', make: '', model: '', licensePlate: '', engineNumber: '', chassisNumber: '', beneficiary: '' },
+      { color: '', make: '', model: '', licensePlate: '', engineNumber: '', chassisNumber: '', beneficiary: '' },
+    ],
+    unpaidSalary: { employer: '', employerAddress: '', beneficiary: '' },
+    nhtContributions: { nhtNumber: '', taxNumber: '', beneficiary: '' },
+    jewellery: { description: '', beneficiary: '' },
+    furniture: { beneficiary: '' },
+    paintings: { beneficiary: '' },
+    firearm: { serialNumber: '', licenseNumber: '', beneficiary: '' },
+    residualEstate: { beneficiaries: '' },
+    signatureDate: '',
+    witnesses: [
+      { name: '', address: '', occupation: '' },
+      { name: '', address: '', occupation: '' },
+    ],
+  });
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 20;
+
+  // handleinput change //
+
+
+  const handleInputChange = (e, section, field, index = null) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    
+    setFormData(prevData => {
+      // Handle possessions
+      if (section === 'possessions' && index !== null) {
+        const newPossessions = [...prevData.possessions];
+        if (!newPossessions[index]) {
+          newPossessions[index] = { type: prevData.selectedPossession, details: {} };
+        }
+        newPossessions[index].details[field] = value;
+        return { ...prevData, possessions: newPossessions };
+      }
+      
+      // Handle arrays (e.g., children, witnesses)
+      if (section && index !== null) {
+        const newArray = [...prevData[section]];
+        newArray[index] = { ...newArray[index], [field]: value };
+        return { ...prevData, [section]: newArray };
+      }
+      
+      // Handle nested objects (e.g., spouse)
+      if (section) {
+        return {
+          ...prevData,
+          [section]: { ...prevData[section], [field]: value }
+        };
+      }
+      
+      // Handle top-level fields
+      return { ...prevData, [field]: value };
+    });
+  };
+
+
+
+  // generate Pdf //
+
+const generatePDF = async (formData) => {
+  const pdfDoc = await PDFDocument.create();
+  const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const timesBoldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+  
+  const addPage = () => {
+    const page = pdfDoc.addPage([612, 792]); // US Letter size
+    return { page, width: 612, height: 792 };
+  };
+
+  let { page, width, height } = addPage();
+  let yOffset = height - 50;
+  let pageCount = 1;
+
+  const drawText = (text, { fontSize = 12, font = timesRomanFont, color = rgb(0, 0, 0), underline = false, align = 'left', isUserInput = false }) => {
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    let xOffset = 50;
+    if (align === 'center') {
+      xOffset = (width - textWidth) / 2;
+    } else if (align === 'right') {
+      xOffset = width - textWidth - 50;
+    }
+
+    page.drawText(text, {
+      x: xOffset,
+      y: yOffset,
+      size: fontSize,
+      font: font,
+      color: isUserInput ? rgb(0.8, 0, 0) : color,
+    });
+
+    if (underline) {
+      page.drawLine({
+        start: { x: xOffset, y: yOffset - 2 },
+        end: { x: xOffset + textWidth, y: yOffset - 2 },
+        thickness: 1,
+        color: color,
+      });
+    }
+
+    yOffset -= fontSize + 10;
+  };
+
+  const addNewPageIfNeeded = (neededSpace) => {
+    if (yOffset - neededSpace < 50) {
+      ({ page, width, height } = addPage());
+      pageCount++;
+      yOffset = height - 50;
+      
+      page.drawText(`Page - ${pageCount} - of 5`, {
+        x: 50,
+        y: height - 25,
+        size: 10,
+        font: timesRomanFont,
+      });
+      page.drawText('(Please insert Testator\'s signature here)', {
+        x: 50,
+        y: height - 40,
+        size: 8,
+        font: timesRomanFont,
+      });
+      page.drawText('(Please insert Witness #1\'s signature here)', {
+        x: 250,
+        y: height - 40,
+        size: 8,
+        font: timesRomanFont,
+      });
+      page.drawText('(Please insert Witness #2\'s signature here)', {
+        x: 450,
+        y: height - 40,
+        size: 8,
+        font: timesRomanFont,
+      });
+
+      yOffset = height - 60;
+    }
+  };
+
+  // Add initial page number and signature lines
+  page.drawText('Page - 1 - of 5', {
+    x: 50,
+    y: height - 25,
+    size: 10,
+    font: timesRomanFont,
+  });
+  page.drawText('(Please insert Testator\'s signature here)', {
+    x: 50,
+    y: height - 40,
+    size: 8,
+    font: timesRomanFont,
+  });
+  page.drawText('(Please insert Witness #1\'s signature here)', {
+    x: 250,
+    y: height - 40,
+    size: 8,
+    font: timesRomanFont,
+  });
+  page.drawText('(Please insert Witness #2\'s signature here)', {
+    x: 450,
+    y: height - 40,
+    size: 8,
+    font: timesRomanFont,
+  });
+
+  yOffset = height - 60;
+
+  // Title
+  drawText('LAST WILL AND TESTAMENT', { fontSize: 18, font: timesBoldFont, underline: true, align: 'center' });
+  yOffset -= 20;
+
+  // Testator Information
+  drawText('THIS IS THE LAST WILL AND TESTAMENT of me', { fontSize: 12 });
+  drawText(formData.testatorName, { fontSize: 12, isUserInput: true });
+  drawText(', a', { fontSize: 12 });
+  drawText(formData.occupation, { fontSize: 12, isUserInput: true });
+  drawText('whose address is', { fontSize: 12 });
+  drawText(formData.address, { fontSize: 12, isUserInput: true });
+  drawText('in the parish of', { fontSize: 12 });
+  drawText(formData.parish, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  // Revocation Clause
+  drawText('1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND', { fontSize: 12 });
+  drawText('DECLARE this to be my Last Will and Testament.', { fontSize: 12 });
+  yOffset -= 10;
+
+  // Executors
+  addNewPageIfNeeded(150);
+  drawText('2. APPOINTMENT OF EXECUTORS', { fontSize: 14, font: timesBoldFont });
+  drawText('I HEREBY APPOINT', { fontSize: 12 });
+  drawText(formData.executor1.name, { fontSize: 12, isUserInput: true });
+  drawText(', my', { fontSize: 12 });
+  drawText(formData.executor1.relationship, { fontSize: 12, isUserInput: true });
+  drawText(formData.executor1.occupation, { fontSize: 12, isUserInput: true });
+  drawText(', of', { fontSize: 12 });
+  drawText(formData.executor1.address, { fontSize: 12, isUserInput: true });
+  drawText(', in the parish of', { fontSize: 12 });
+  drawText(formData.executor1.parish, { fontSize: 12, isUserInput: true });
+  drawText('AND', { fontSize: 12 });
+  drawText(formData.executor2.name, { fontSize: 12, isUserInput: true });
+  drawText(', my', { fontSize: 12 });
+  drawText(formData.executor2.relationship, { fontSize: 12, isUserInput: true });
+  drawText(formData.executor2.occupation, { fontSize: 12, isUserInput: true });
+  drawText(', of', { fontSize: 12 });
+  drawText(formData.executor2.address, { fontSize: 12, isUserInput: true });
+  drawText(', in the parish of', { fontSize: 12 });
+  drawText(formData.executor2.parish, { fontSize: 12, isUserInput: true });
+  drawText('to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', { fontSize: 12 });
+  yOffset -= 10;
+
+  // Debts and Expenses
+  drawText('3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral,', { fontSize: 12 });
+  drawText('tombstone and testamentary expenses.', { fontSize: 12 });
+  yOffset -= 10;
+
+  // Funeral Arrangements
+  addNewPageIfNeeded(200);
+  drawText('4. FUNERAL AND BURIAL ARRANGEMENTS', { fontSize: 14, font: timesBoldFont });
+  drawText('I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that', { fontSize: 12 });
+  drawText('my funeral expenses and any debts be paid out of my estate, along with the following:', { fontSize: 12 });
+  drawText('a. That I be', { fontSize: 12 });
+  drawText(formData.funeralDetails, { fontSize: 12, isUserInput: true });
+  drawText('b. That be clothed in', { fontSize: 12 });
+  drawText(formData.clothingDetails, { fontSize: 12, isUserInput: true });
+  drawText('c. That my remains be placed', { fontSize: 12 });
+  drawText(formData.remainsDetails, { fontSize: 12, isUserInput: true });
+  drawText('d. That the following songs be included in my funeral programme', { fontSize: 12 });
+  drawText('e. That the following song is played at my wedding-', { fontSize: 12 });
+  formData.songs.forEach((song, index) => {
+    drawText(`- ${song}`, { fontSize: 12, isUserInput: true });
+  });
+  yOffset -= 10;
+
+  // Bequests
+  addNewPageIfNeeded(100);
+  drawText('5. I GIVE DEVISE AND BEQUEATH:', { fontSize: 14, font: timesBoldFont });
+
+  // Properties
+  drawText('a. PROPERTY', { fontSize: 12, font: timesBoldFont });
+  formData.properties.forEach((property, index) => {
+    drawText(`${index === 0 ? 'i. 1st' : index === 1 ? 'ii. 2nd' : 'iii. 3rd'} Property- situate at`, { fontSize: 12 });
+    drawText(property.address, { fontSize: 12, isUserInput: true });
+    drawText(', in the parish of', { fontSize: 12 });
+    drawText(property.parish, { fontSize: 12, isUserInput: true });
+    drawText('registered at', { fontSize: 12 });
+    drawText(`${property.volume} and ${property.folio}`, { fontSize: 12, isUserInput: true });
+    drawText('of the Register Book of', { fontSize: 12 });
+    drawText('Titles to', { fontSize: 12 });
+    drawText(property.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  // Shares and Stocks
+  addNewPageIfNeeded(150);
+  drawText('b. SHARES AND STOCKS', { fontSize: 12, font: timesBoldFont });
+  formData.shares.forEach((share, index) => {
+    drawText(`${index + 1}. Shares in`, { fontSize: 12 });
+    drawText(share.company, { fontSize: 12, isUserInput: true });
+    drawText('held in', { fontSize: 12 });
+    drawText(share.country, { fontSize: 12, isUserInput: true });
+    drawText('at', { fontSize: 12 });
+    drawText(share.exchange, { fontSize: 12, isUserInput: true });
+    drawText('in account numbered', { fontSize: 12 });
+    drawText(share.accountNumber, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(share.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  // Insurance
+  addNewPageIfNeeded(150);
+  drawText('c. INSURANCE', { fontSize: 12, font: timesBoldFont });
+  formData.insurance.forEach((policy, index) => {
+    drawText(`${index === 0 ? 'i' : 'j'}. Proceeds of insurance policy numbered`, { fontSize: 12 });
+    drawText(policy.policyNumber, { fontSize: 12, isUserInput: true });
+    drawText(', held at', { fontSize: 12 });
+    drawText(policy.company, { fontSize: 12, isUserInput: true });
+    drawText('located at', { fontSize: 12 });
+    drawText(`${policy.address}, ${policy.country}`, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(policy.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  // Bank Accounts
+  addNewPageIfNeeded(200);
+  drawText('d. BANK ACCOUNTS', { fontSize: 12, font: timesBoldFont });
+  formData.bankAccounts.forEach((account, index) => {
+    drawText(`${index + 1}. Proceeds of bank account numbered`, { fontSize: 12 });
+    drawText(account.accountNumber, { fontSize: 12, isUserInput: true });
+    drawText(', held at', { fontSize: 12 });
+    drawText(account.bank, { fontSize: 12, isUserInput: true });
+    drawText('located at', { fontSize: 12 });
+    drawText(`${account.address}, ${account.country}`, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(account.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  // Motor Vehicles
+  addNewPageIfNeeded(200);
+  drawText('e. MOTOR VEHICLE', { fontSize: 12, font: timesBoldFont });
+  formData.vehicles.forEach((vehicle, index) => {
+    drawText(`${index + 1}.`, { fontSize: 12 });
+    drawText(`${vehicle.color} ${vehicle.make} ${vehicle.model}`, { fontSize: 12, isUserInput: true });
+    drawText('Motor vehicle bearing', { fontSize: 12 });
+    drawText('Licence plate number', { fontSize: 12 });
+    drawText(vehicle.licensePlate, { fontSize: 12, isUserInput: true });
+    drawText('and engine and chassis numbers', { fontSize: 12 });
+    drawText(`${vehicle.engineNumber} and ${vehicle.chassisNumber}`, { fontSize: 12, isUserInput: true });
+    drawText('to', { fontSize: 12 });
+    drawText(vehicle.beneficiary, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+  });
+
+  // Other Bequests
+  addNewPageIfNeeded(300);
+  drawText('f. UNPAID SALARY AND/EMOLUMENTS', { fontSize: 12, font: timesBoldFont });
+  drawText('Unpaid salary and/or emoluments with my employer,', { fontSize: 12 });
+  drawText(formData.unpaidSalary.employer, { fontSize: 12, isUserInput: true });
+  drawText('located at', { fontSize: 12 });
+  drawText(formData.unpaidSalary.employerAddress, { fontSize: 12, isUserInput: true });
+  drawText('to', { fontSize: 12 });
+  drawText(formData.unpaidSalary.beneficiary, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('g. NATIONAL HOUSING TRUST(NHT) CONTRIBUTIONS', { fontSize: 12, font: timesBoldFont });
+  drawText('Refund of National Housing Trust Contributions', { fontSize: 12 });
+  drawText(`(${formData.nhtContributions.nhtNumber} and`, { fontSize: 12, isUserInput: true });
+  drawText('Tax Registration Number', { fontSize: 12 });
+  drawText(formData.nhtContributions.taxNumber, { fontSize: 12, isUserInput: true });
+  drawText(') to', { fontSize: 12 });
+  drawText(formData.nhtContributions.beneficiary, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('h. JEWELLERY', { fontSize: 12, font: timesBoldFont });
+drawText('h. JEWELLERY', { fontSize: 12, font: timesBoldFont });
+  drawText(formData.jewellery.description, { fontSize: 12, isUserInput: true });
+  drawText('described as my Jewellery to', { fontSize: 12 });
+  drawText(formData.jewellery.beneficiary, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('i. FURNITURE', { fontSize: 12, font: timesBoldFont });
+  drawText('Furniture to', { fontSize: 12 });
+  drawText(formData.furniture.beneficiary, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('j. PAINTINGS', { fontSize: 12, font: timesBoldFont });
+  drawText('Paintings to', { fontSize: 12 });
+  drawText(formData.paintings.beneficiary, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  drawText('k. FIREARM', { fontSize: 12, font: timesBoldFont });
+  drawText('Firearm bearing serial and firearm licence numbers', { fontSize: 12 });
+  drawText(`${formData.firearm.serialNumber} and ${formData.firearm.licenseNumber}`, { fontSize: 12, isUserInput: true });
+  drawText('to', { fontSize: 12 });
+  drawText(formData.firearm.beneficiary, { fontSize: 12, isUserInput: true });
+  yOffset -= 10;
+
+  // Residual Estate
+  addNewPageIfNeeded(100);
+  drawText('6. RESIDUAL ESTATE', { fontSize: 14, font: timesBoldFont });
+  drawText('I give, devise and bequeath all the rest, residue and remainder of my estate, including any proceeds', { fontSize: 12 });
+  drawText('from the sale of assets to', { fontSize: 12 });
+  drawText(formData.residualEstate.beneficiaries, { fontSize: 12, isUserInput: true });
+  drawText('in equal shares.', { fontSize: 12 });
+  yOffset -= 20;
+
+  // Signature and Date
+  addNewPageIfNeeded(150);
+  drawText('IN WITNESS WHEREOF I have hereunto set my hand and seal this', { fontSize: 12 });
+  drawText(formData.signatureDate, { fontSize: 12, isUserInput: true });
+  yOffset -= 30;
+  drawText('____________________________', { fontSize: 12 });
+  drawText('(Testator to sign here)', { fontSize: 10 });
+  yOffset -= 20;
+
+  drawText('SIGNED by the Testator the said', { fontSize: 12 });
+  drawText(formData.testatorName, { fontSize: 12, isUserInput: true });
+  drawText(', a', { fontSize: 12 });
+  drawText(formData.occupation, { fontSize: 12, isUserInput: true });
+  drawText('of', { fontSize: 12 });
+  drawText(formData.address, { fontSize: 12, isUserInput: true });
+  drawText(', in', { fontSize: 12 });
+  drawText('the parish of', { fontSize: 12 });
+  drawText(formData.parish, { fontSize: 12, isUserInput: true });
+  drawText(', as my Last Will and Testament I declare that I have signed and', { fontSize: 12 });
+  drawText('executed this Last Will and Testament willingly and in the presence of the following witnesses, who are', { fontSize: 12 });
+  drawText('present at the same time and who have signed as witnesses in my presence:', { fontSize: 12 });
+  yOffset -= 20;
+
+  // Witnesses
+  drawText('WITNESSES', { fontSize: 14, font: timesBoldFont });
+  formData.witnesses.forEach((witness, index) => {
+    drawText('Name and', { fontSize: 12 });
+    drawText('Signature:', { fontSize: 12 });
+    drawText('____________________________', { fontSize: 12 });
+    drawText(witness.name, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+    drawText('Address:', { fontSize: 12 });
+    drawText(witness.address, { fontSize: 12, isUserInput: true });
+    yOffset -= 10;
+    drawText('Occupation:', { fontSize: 12 });
+    drawText(witness.occupation, { fontSize: 12, isUserInput: true });
+    yOffset -= 20;
+  });
+
+  drawText('Witnesses', { fontSize: 12 });
+  drawText('to sign', { fontSize: 12 });
+  drawText('here.', { fontSize: 12 });
+
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
+};
+
+
+const handleGeneratePDF = async (e) => {
+  e.preventDefault();
+  try {
+    const pdfBytes = await generatePDF(formData);
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'last_will_and_testament.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+  }
+};
+
+
+
+
+// add //
+
+
+const addBeneficiary = () => {
+    setFormData(prevData => ({
+      ...prevData,
+      additionalBeneficiaries: [
+        ...prevData.additionalBeneficiaries,
+        { type: 'individual', fullName: '', relationship: '', email: '', address: '', parish: '' }
+      ]
+    }));
+  };
+  
+  
+  const removeBeneficiary = (index) => {
+    setFormData(prevData => ({
+      ...prevData,
+      additionalBeneficiaries: prevData.additionalBeneficiaries.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    generatePDF();
+  };
+
+  const renderInput = (section, field, label, index = null) => (
+    <div className="mb-4" key={`${section}-${field}-${index}`}>
+      <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor={`${section}-${field}-${index}`}>
+        {label}
+      </label>
+      <input
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+        id={`${section}-${field}-${index}`}
+        type="text"
+        value={index !== null ? formData[section][index][field] : (section ? formData[section][field] : formData[field])}
+        onChange={(e) => handleInputChange(e, section, field, index)}
+      />
+    </div>
+  );
+
+
+      // update //  
+
+      const addBequest = () => {
+        setFormData(prevData => ({
+          ...prevData,
+          bequests: [...prevData.bequests, { beneficiaryId: '', item: '' }]
+        }));
+      };
+      
+      const removeBequest = (index) => {
+        setFormData(prevData => ({
+          ...prevData,
+          bequests: prevData.bequests.filter((_, i) => i !== index)
+        }));
+      };
+      
+      const handleBequestChange = (index, field, value) => {
+        setFormData(prevData => {
+          const newBequests = [...prevData.bequests];
+          newBequests[index] = { ...newBequests[index], [field]: value };
+          return { ...prevData, bequests: newBequests };
+        });
+      };
+
+    
+
+
+
+     // possesions code // 
+
+     const addPossession = () => {
+        if (formData.selectedPossession) {
+          setFormData(prevData => ({
+            ...prevData,
+            possessions: [...(prevData.possessions || []), { type: prevData.selectedPossession, details: {} }],
+            selectedPossession: '',
+          }));
+        }
+      };
+      
+      const deletePossession = (index) => {
+        setFormData(prevData => ({
+          ...prevData,
+          possessions: prevData.possessions.filter((_, i) => i !== index),
+        }));
+      };
+      
+      const renderPossessionFields = (possession, index) => {
+        switch (possession.type) {
+          case 'property':
+            return (
+              <>
+                {renderInput('possessions', 'address', 'Address', index)}
+                {renderInput('possessions', 'parish', 'Parish', index)}
+                {renderInput('possessions', 'volume', 'Volume', index)}
+                {renderInput('possessions', 'folio', 'Folio', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'shares':
+            return (
+              <>
+                {renderInput('possessions', 'company', 'Company', index)}
+                {renderInput('possessions', 'country', 'Country', index)}
+                {renderInput('possessions', 'exchange', 'Exchange', index)}
+                {renderInput('possessions', 'accountNumber', 'Account Number', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'insurance':
+            return (
+              <>
+                {renderInput('possessions', 'policyNumber', 'Policy Number', index)}
+                {renderInput('possessions', 'company', 'Company', index)}
+                {renderInput('possessions', 'address', 'Address', index)}
+                {renderInput('possessions', 'country', 'Country', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'bankAccounts':
+            return (
+              <>
+                {renderInput('possessions', 'accountNumber', 'Account Number', index)}
+                {renderInput('possessions', 'bank', 'Bank Name', index)}
+                {renderInput('possessions', 'address', 'Address', index)}
+                {renderInput('possessions', 'country', 'Country', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'motorVehicle':
+            return (
+              <>
+                {renderInput('possessions', 'make', 'Make', index)}
+                {renderInput('possessions', 'model', 'Model', index)}
+                {renderInput('possessions', 'licensePlate', 'License Plate', index)}
+                {renderInput('possessions', 'engineNumber', 'Engine Number', index)}
+                {renderInput('possessions', 'chassisNumber', 'Chassis Number', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'unpaidSalary':
+            return (
+              <>
+                {renderInput('possessions', 'employer', 'Employer', index)}
+                {renderInput('possessions', 'employerAddress', 'Employer Address', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'nhtContributions':
+            return (
+              <>
+                {renderInput('possessions', 'nhtNumber', 'NHT Number', index)}
+                {renderInput('possessions', 'taxNumber', 'Tax Registration Number', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          case 'jewellery':
+          case 'furniture':
+          case 'paintings':
+          case 'firearm':
+          case 'residualEstate':
+            return (
+              <>
+                {renderInput('possessions', 'description', 'Description', index)}
+                {renderInput('possessions', 'beneficiary', 'Beneficiary', index)}
+              </>
+            );
+          default:
+            return null;
+        }
+      };
+
+
+  const renderStep = () => {
+    switch (currentStep) {
+        case 1:
+            return (
+                <section className="introduction bg-gray-100 p-8 rounded-lg shadow-lg max-w-3xl mx-auto mt-10">
+                <h2 className="text-3xl font-bold text-blue-700 mb-6 text-center">Welcome to Your Last Will and Testament</h2>
+                <p className="text-lg text-gray-700 mb-4 text-center">
+                  We've made this process as easy and quick as possible. It should only take a few minutes of your time.
+                </p>
+                <div className="mb-6">
+                  <p className="text-gray-600 mb-3">
+                    You will be asked a series of questions to guide you through creating your Last Will and Testament.
+                  </p>
+                  <p className="text-gray-600 mb-3">
+                    For general help, refer to the "Common Questions" that are available on each page. If you can't see them, click on the large "?" at the top of the page.
+                  </p>
+                  <p className="text-gray-600 mb-3">
+                    For specific help with any question, hover over or tap the small "?" icon next to the item.
+                  </p>
+                  <p className="text-gray-600 mb-3">
+                    You can save your progress at any time and return later.
+                  </p>
+                  <p className="text-gray-600 mb-4">
+                    Once you're finished, make sure to print and sign your document in front of witnesses to make it legally binding.
+                  </p>
+                </div>
+                <div className="text-center">
+                </div>
+              </section>
+            );
+      case 2:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Testator Information</h2>
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              <div>
+                <label className="block text-gray-700 text-sm font-bold mb-2">Prefix</label>
+                <select
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={formData.prefix || ''}
+                  onChange={(e) => handleInputChange(e, null, 'prefix')}
+                >
+                  <option value="">Select...</option>
+                  <option value="Mr">Mr</option>
+                  <option value="Mrs">Mrs</option>
+                  <option value="Ms">Ms</option>
+                  <option value="Dr">Dr</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                {renderInput(null, 'testatorName', 'Full Name')}
+              </div>
+              <div>
+                <label className="block text-gray-700 text-sm font-bold mb-2">Suffix</label>
+                <select
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={formData.suffix || ''}
+                  onChange={(e) => handleInputChange(e, null, 'suffix')}
+                >
+                  <option value="">Select...</option>
+                  <option value="Jr">Jr</option>
+                  <option value="Sr">Sr</option>
+                  <option value="II">II</option>
+                  <option value="III">III</option>
+                </select>
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Gender</label>
+              <div className="flex space-x-4">
+                {['Male', 'Female', 'Neutral'].map((gender) => (
+                  <label key={gender} className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio"
+                      name="gender"
+                      value={gender.toLowerCase()}
+                      checked={formData.gender === gender.toLowerCase()}
+                      onChange={(e) => handleInputChange(e, null, 'gender')}
+                    />
+                    <span className="ml-2">{gender}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {renderInput(null, 'occupation', 'Occupation')}
+            {renderInput(null, 'address', 'Address')}
+            {renderInput(null, 'parish', 'Parish')}
+          </section>
+        );
+      case 3:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Family Status</h2>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Marital Status</label>
+              <select
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                value={formData.maritalStatus || ''}
+                onChange={(e) => handleInputChange(e, null, 'maritalStatus')}
+              >
+                <option value="">Select...</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="divorced">Divorced</option>
+                <option value="widowed">Widowed</option>
+                <option value="separated">Separated</option>
+                <option value="domesticPartnership">Domestic Partnership</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Living Children</label>
+              <div className="flex space-x-4">
+                {['Yes', 'No'].map((option) => (
+                  <label key={option} className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio"
+                      name="livingChildren"
+                      value={option.toLowerCase()}
+                      checked={formData.livingChildren === option.toLowerCase()}
+                      onChange={(e) => handleInputChange(e, null, 'livingChildren')}
+                    />
+                    <span className="ml-2">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Living Grandchildren</label>
+              <div className="flex space-x-4">
+                {['Yes', 'No'].map((option) => (
+                  <label key={option} className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio"
+                      name="livingGrandchildren"
+                      value={option.toLowerCase()}
+                      checked={formData.livingGrandchildren === option.toLowerCase()}
+                      onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
+                    />
+                    <span className="ml-2">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+      case 4:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Spouse/Partner Details</h2>
+            {renderInput('spouse', 'fullName', 'Full Name')}
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Relation</label>
+              <select
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                value={formData.spouse?.relation || ''}
+                onChange={(e) => handleInputChange(e, 'spouse', 'relation')}
+              >
+                <option value="">Select...</option>
+                <option value="wife">Wife</option>
+                <option value="husband">Husband</option>
+                <option value="partner">Partner</option>
+              </select>
+            </div>
+            {renderInput('spouse', 'occupation', 'Occupation')}
+          </section>
+        );
+      case 5:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Identify Children</h2>
+            {formData.children.map((child, index) => (
+              <div key={index} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Child {index + 1}</h3>
+                {renderInput('children', 'fullName', "Child's Full Name", index)}
+                <div className="mb-4">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">Relationship</label>
+                  <div className="flex space-x-4">
+                    {['Son', 'Daughter', 'Gender Neutral Child'].map((relation) => (
+                      <label key={relation} className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          className="form-radio"
+                          name={`childRelation-${index}`}
+                          value={relation.toLowerCase().replace(' ', '-')}
+                          checked={child.relationship === relation.toLowerCase().replace(' ', '-')}
+                          onChange={(e) => handleInputChange(e, 'children', 'relationship', index)}
+                        />
+                        <span className="ml-2">{relation}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {renderInput('children', 'dateOfBirth', "Child's Date of Birth", index, 'date')}
+                {renderInput('children', 'email', 'Email Address', index, 'email')}
+                {renderInput('children', 'occupation', 'Occupation', index)}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({
+                  ...formData,
+                  children: [...formData.children, { fullName: '', relationship: '', dateOfBirth: '', email: '', occupation: '' }]
+                });
+              }}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Add Child
+            </button>
+          </section>
+        );
+      case 6:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Deceased Family Members</h2>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Do you have any deceased family members?</label>
+              <div className="flex space-x-4">
+                {['Yes', 'No'].map((option) => (
+                  <label key={option} className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio"
+                      name="hasDeceasedFamilyMembers"
+                      value={option.toLowerCase()}
+                      checked={formData.hasDeceasedFamilyMembers === option.toLowerCase()}
+                      onChange={(e) => handleInputChange(e, null, 'hasDeceasedFamilyMembers')}
+                    />
+                    <span className="ml-2">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {formData.hasDeceasedFamilyMembers === 'yes' && (
+              <div>
+                {formData.deceasedFamilyMembers.map((member, index) => (
+                  <div key={index} className="mb-4 p-4 border rounded">
+                    <h3 className="text-xl font-semibold mb-2">Deceased Family Member {index + 1}</h3>
+                    {renderInput('deceasedFamilyMembers', 'fullName', 'Full Name', index)}
+                    <div className="mb-4">
+                      <label className="block text-gray-700 text-sm font-bold mb-2">Relationship</label>
+                      <select
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        value={member.relationship || ''}
+                        onChange={(e) => handleInputChange(e, 'deceasedFamilyMembers', 'relationship', index)}
+                      >
+                        <option value="">Select...</option>
+                        <option value="spouse">Spouse</option>
+                        <option value="child">Child</option>
+                        <option value="parent">Parent</option>
+                        <option value="sibling">Sibling</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      deceasedFamilyMembers: [...formData.deceasedFamilyMembers, { fullName: '', relationship: '' }]
+                    });
+                  }}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                >
+                  Add Deceased Family Member
+                </button>
+              </div>
+            )}
+          </section>
+        );
+        case 7:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Identify Others to be Included in your Will</h2>
+                <p className="mb-4">If there are other people or organizations to be included in your Will, you can name them now. You can also add more names later, as you are working through this wizard.</p>
+                <p className="mb-4">You should not include your spouse/partner, children, or grandchildren on this page, because they would have been named in previous pages of this wizard.</p>
+                <p className="mb-4">By listing the beneficiaries here, it makes it easier to select them later on for receiving a bequest. You are also able to set up a trust for them. They do not appear in your Will unless they are specifically selected in Section 7.</p>
+                
+                <div className="mb-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio"
+                      name="otherBeneficiaries"
+                      value="none"
+                      checked={formData.otherBeneficiaries === "none"}
+                      onChange={(e) => handleInputChange(e, null, 'otherBeneficiaries')}
+                    />
+                    <span className="ml-2">I have no other beneficiaries, or will add them later</span>
+                  </label>
+                </div>
+                <div className="mb-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio"
+                      name="otherBeneficiaries"
+                      value="add"
+                      checked={formData.otherBeneficiaries === "add"}
+                      onChange={(e) => handleInputChange(e, null, 'otherBeneficiaries')}
+                    />
+                    <span className="ml-2">I would like to add beneficiaries now</span>
+                  </label>
+                </div>
+          
+                {formData.otherBeneficiaries === "add" && (
+                  <div>
+                    {formData.additionalBeneficiaries.map((beneficiary, index) => (
+                      <div key={index} className="mb-4 p-4 border rounded">
+                        <h3 className="text-xl font-semibold mb-2">Beneficiary {index + 1}</h3>
+                        <div className="mb-2">
+                          <label className="inline-flex items-center mr-4">
+                            <input
+                              type="radio"
+                              className="form-radio"
+                              name={`beneficiaryType-${index}`}
+                              value="individual"
+                              checked={beneficiary.type === "individual"}
+                              onChange={(e) => handleInputChange(e, 'additionalBeneficiaries', 'type', index)}
+                            />
+                            <span className="ml-2">Individual</span>
+                          </label>
+                          <label className="inline-flex items-center mr-4">
+                            <input
+                              type="radio"
+                              className="form-radio"
+                              name={`beneficiaryType-${index}`}
+                              value="charity"
+                              checked={beneficiary.type === "charity"}
+                              onChange={(e) => handleInputChange(e, 'additionalBeneficiaries', 'type', index)}
+                            />
+                            <span className="ml-2">Charity/Org</span>
+                          </label>
+                          <label className="inline-flex items-center">
+                            <input
+                              type="radio"
+                              className="form-radio"
+                              name={`beneficiaryType-${index}`}
+                              value="group"
+                              checked={beneficiary.type === "group"}
+                              onChange={(e) => handleInputChange(e, 'additionalBeneficiaries', 'type', index)}
+                            />
+                            <span className="ml-2">Group</span>
+                          </label>
+                        </div>
+                        {renderInput('additionalBeneficiaries', 'fullName', 'Full Name', index)}
+                        {renderInput('additionalBeneficiaries', 'relationship', 'Relationship', index)}
+                        {renderInput('additionalBeneficiaries', 'email', 'Email Address', index)}
+                        {renderInput('additionalBeneficiaries', 'address', 'Address', index)}
+                        {renderInput('additionalBeneficiaries', 'parish', 'Parish', index)}
+                        <button
+                          type="button"
+                          onClick={() => removeBeneficiary(index)}
+                          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-2"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addBeneficiary}
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                    >
+                      Add Beneficiary
+                    </button>
+                  </div>
+                )}
+              </section>
+            );
+    
+      case 8:
+        return (
+            <section>
+      <h2 className="text-2xl font-semibold mb-4">Identify Guardians for Minor Children</h2>
+      {formData.livingChildren === 'no' ? (
+        <div className="p-4 bg-gray-100 rounded">
+          <p>You have indicated that you have no minor children, so you do not need to identify any guardians.</p>
+          <p className="mt-2">Click "NEXT" to continue...</p>
+        </div>
+      ) : (
+        formData.minorChildren.map((child, index) => (
+          <div key={index} className="mb-8 p-6 border rounded-lg bg-white shadow-sm">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="border-r pr-6">
+                <h3 className="text-xl font-semibold mb-4">{child.fullName}</h3>
+              </div>
+              <div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Re-enter Grand Child name:</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                    value={child.fullName}
+                    disabled
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Personal guardian's full name:</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                    value={child.guardianName || ''}
+                    onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianName', index)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Reason for choosing this guardian:</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                    value={child.guardianReason || ''}
+                    onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianReason', index)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Email Address:</label>
+                  <input
+                    type="email"
+                    className="w-full p-2 border rounded"
+                    value={child.guardianEmail || ''}
+                    onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianEmail', index)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Occupation:</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                    value={child.guardianOccupation || ''}
+                    onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianOccupation', index)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Address:</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                    value={child.guardianAddress || ''}
+                    onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianAddress', index)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Parish:</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                    value={child.guardianParish || ''}
+                    onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianParish', index)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox h-5 w-5 text-blue-600"
+                      checked={child.guardianIsAdult || false}
+                      onChange={(e) => handleInputChange(e, 'minorChildren', 'guardianIsAdult', index)}
+                    />
+                    <span className="ml-2">The Guardian of this minor child is 18 above</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+    </section>
+        );
+      case 9:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Executors and Witnesses</h2>
+            <p className="mb-4">Here you name the person you would like to be the executor of your Will. This person will be responsible for carrying out your wishes as specified in your Will, including the distribution of your possessions to your beneficiaries.</p>
+            <p className="mb-4">You must identify somebody here. Although it is common to list a single executor, you may name up to 3 executors who must then work together to carry out your wishes. On the next page you will be able to name alternate executors to take the place of those unable to serve.</p>
+            <p className="mb-4">We understand that you may need to talk to other people before naming an executor. However, if you are stuck, you can name a person now and come back and change it later.</p>
+  
+            {[1, 2, 3].map((executorNum) => (
+              <div key={executorNum} className="mb-8">
+                <h3 className="text-xl font-semibold mb-2">{executorNum === 1 ? '1st' : executorNum === 2 ? '2nd' : '3rd'} Executor</h3>
+                {renderInput(`executor${executorNum}`, 'name', 'Full Name')}
+                {renderInput(`executor${executorNum}`, 'relationship', 'Relationship')}
+                {renderInput(`executor${executorNum}`, 'email', 'Email Address')}
+                {renderInput(`executor${executorNum}`, 'occupation', 'Occupation')}
+                {renderInput(`executor${executorNum}`, 'address', 'Address')}
+                {renderInput(`executor${executorNum}`, 'parish', 'Parish')}
+              </div>
+            ))}
+  
+            <h3 className="text-xl font-semibold mb-2">Witnesses</h3>
+            {[1, 2].map((witnessNum) => (
+              <div key={witnessNum} className="mb-8">
+                <h4 className="text-lg font-semibold mb-2">{witnessNum === 1 ? '1st' : '2nd'} Witness</h4>
+                {renderInput(`witness${witnessNum}`, 'name', 'Full Name')}
+                {renderInput(`witness${witnessNum}`, 'relationship', 'Relationship')}
+                {renderInput(`witness${witnessNum}`, 'email', 'Email Address')}
+                {renderInput(`witness${witnessNum}`, 'occupation', 'Occupation')}
+                {renderInput(`witness${witnessNum}`, 'address', 'Address')}
+                {renderInput(`witness${witnessNum}`, 'parish', 'Parish')}
+              </div>
+            ))}
+          </section>
+        );
+        
+         
+      case 10:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Funeral Arrangements</h2>
+            {renderInput(null, 'funeralDetails', 'Funeral Details')}
+            {renderInput(null, 'clothingDetails', 'Clothing Details')}
+            {renderInput(null, 'remainsDetails', 'Remains Placement')}
+            <h3 className="text-xl font-semibold mb-2">Songs</h3>
+            {formData.songs.map((_, index) => (
+              renderInput('songs', index, `Song ${index + 1}`, index)
+            ))}
+          </section>
+        );
+
+        
+
+      case 11:
+        return (
+            <section>
+            <h2 className="text-2xl font-semibold mb-4">Add Your Possessions</h2>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Select Possession Type</label>
+              <select
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                value={formData.selectedPossession || ''}
+                onChange={(e) => handleInputChange(e, null, 'selectedPossession')}
+              >
+                <option value="">Select a possession type</option>
+                <option value="property">Property</option>
+                <option value="shares">Shares and Stocks</option>
+                <option value="insurance">Insurance</option>
+                <option value="bankAccounts">Bank Accounts</option>
+                <option value="motorVehicle">Motor Vehicle</option>
+                <option value="unpaidSalary">Unpaid Salary and Emoluments</option>
+                <option value="nhtContributions">National Housing Trust (NHT) Contributions</option>
+                <option value="jewellery">Jewellery</option>
+                <option value="furniture">Furniture</option>
+                <option value="paintings">Paintings</option>
+                <option value="firearm">Firearm</option>
+                <option value="residualEstate">Residual Estate</option>
+              </select>
+            </div>
+      
+            <button
+              type="button"
+              onClick={addPossession}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mb-4"
+            >
+              Add Possession
+            </button>
+      
+            {formData.possessions && formData.possessions.map((possession, index) => (
+              <div key={index} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">{possession.type}</h3>
+                {renderPossessionFields(possession, index)}
+                <button
+                  type="button"
+                  onClick={() => deletePossession(index)}
+                  className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-2"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </section>
+        );
+
+        case 12:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Properties</h2>
+                {formData.properties.map((_, index) => (
+                  <div key={`property-${index}`} className="mb-4 p-4 border rounded">
+                    <h3 className="text-xl font-semibold mb-2">Property {index + 1}</h3>
+                    {renderInput('properties', 'address', 'Address', index)}
+                    {renderInput('properties', 'parish', 'Parish', index)}
+                    {renderInput('properties', 'volume', 'Volume', index)}
+                    {renderInput('properties', 'folio', 'Folio', index)}
+                    {renderInput('properties', 'beneficiary', 'Beneficiary', index)}
+                  </div>
+                ))}
+              </section>
+            );
+          case 13:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Shares and Stocks</h2>
+                {formData.shares.map((_, index) => (
+                  <div key={`share-${index}`} className="mb-4 p-4 border rounded">
+                    <h3 className="text-xl font-semibold mb-2">Share {index + 1}</h3>
+                    {renderInput('shares', 'company', 'Company', index)}
+                    {renderInput('shares', 'country', 'Country', index)}
+                    {renderInput('shares', 'exchange', 'Exchange', index)}
+                    {renderInput('shares', 'accountNumber', 'Account Number', index)}
+                    {renderInput('shares', 'beneficiary', 'Beneficiary', index)}
+                  </div>
+                ))}
+              </section>
+            );
+          case 14:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Insurance</h2>
+                {formData.insurance.map((_, index) => (
+                  <div key={`insurance-${index}`} className="mb-4 p-4 border rounded">
+                    <h3 className="text-xl font-semibold mb-2">Policy {index + 1}</h3>
+                    {renderInput('insurance', 'policyNumber', 'Policy Number', index)}
+                    {renderInput('insurance', 'company', 'Company', index)}
+                    {renderInput('insurance', 'address', 'Address', index)}
+                    {renderInput('insurance', 'country', 'Country', index)}
+                    {renderInput('insurance', 'beneficiary', 'Beneficiary', index)}
+                  </div>
+                ))}
+              </section>
+            );
+          case 15:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Bank Accounts</h2>
+                {formData.bankAccounts.map((_, index) => (
+                  <div key={`bank-${index}`} className="mb-4 p-4 border rounded">
+                    <h3 className="text-xl font-semibold mb-2">Account {index + 1}</h3>
+                    {renderInput('bankAccounts', 'accountNumber', 'Account Number', index)}
+                    {renderInput('bankAccounts', 'bank', 'Bank Name', index)}
+                    {renderInput('bankAccounts', 'address', 'Address', index)}
+                    {renderInput('bankAccounts', 'country', 'Country', index)}
+                    {renderInput('bankAccounts', 'beneficiary', 'Beneficiary', index)}
+                  </div>
+                ))}
+              </section>
+            );
+          case 16:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Motor Vehicles</h2>
+                {formData.vehicles.map((_, index) => (
+                  <div key={`vehicle-${index}`} className="mb-4 p-4 border rounded">
+                    <h3 className="text-xl font-semibold mb-2">Vehicle {index + 1}</h3>
+                    {renderInput('vehicles', 'color', 'Color', index)}
+                    {renderInput('vehicles', 'make', 'Make', index)}
+                    {renderInput('vehicles', 'model', 'Model', index)}
+                    {renderInput('vehicles', 'licensePlate', 'License Plate', index)}
+                    {renderInput('vehicles', 'engineNumber', 'Engine Number', index)}
+                    {renderInput('vehicles', 'chassisNumber', 'Chassis Number', index)}
+                    {renderInput('vehicles', 'beneficiary', 'Beneficiary', index)}
+                  </div>
+                ))}
+              </section>
+            );
+          case 17:
+            return (
+              <section>
+                <h2 className="text-2xl font-semibold mb-4">Other Bequests</h2>
+                <h3 className="text-xl font-semibold mb-2">Unpaid Salary and Emoluments</h3>
+                {renderInput('unpaidSalary', 'employer', 'Employer')}
+                {renderInput('unpaidSalary', 'employerAddress', 'Employer Address')}
+                {renderInput('unpaidSalary', 'beneficiary', 'Beneficiary')}
+    
+                <h3 className="text-xl font-semibold mb-2 mt-4">National Housing Trust (NHT) Contributions</h3>
+                {renderInput('nhtContributions', 'nhtNumber', 'NHT Number')}
+                {renderInput('nhtContributions', 'taxNumber', 'Tax Registration Number')}
+                {renderInput('nhtContributions', 'beneficiary', 'Beneficiary')}
+    
+                <h3 className="text-xl font-semibold mb-2 mt-4">Jewellery</h3>
+                {renderInput('jewellery', 'description', 'Description')}
+                {renderInput('jewellery', 'beneficiary', 'Beneficiary')}
+    
+                <h3 className="text-xl font-semibold mb-2 mt-4">Furniture</h3>
+                {renderInput('furniture', 'beneficiary', 'Beneficiary')}
+    
+                <h3 className="text-xl font-semibold mb-2 mt-4">Paintings</h3>
+                {renderInput('paintings', 'beneficiary', 'Beneficiary')}
+    
+                <h3 className="text-xl font-semibold mb-2 mt-4">Firearm</h3>
+                {renderInput('firearm', 'serialNumber', 'Serial Number')}
+                {renderInput('firearm', 'licenseNumber', 'License Number')}
+                {renderInput('firearm', 'beneficiary', 'Beneficiary')}
+              </section>
+            );
+
+            case 18:
+      return (
+        <section className="distribute-possessions">
+          <h2 className="text-2xl font-semibold mb-4">Distribute Your Possessions</h2>
+          <p className="mb-4">You are now ready to specify how you wish your possessions to be distributed.</p>
+          <h3 className="text-xl font-semibold mb-2">Remember:</h3>
+          <ul className="list-disc list-inside mb-4">
+            <li>To reduce the likelihood of your Will being contested in a court of law, be as complete and unambiguous in your answers as possible.</li>
+            <li>While answering the questions, if you need general assistance on the section, just read the Common Questions which appear on every page. If you don't see the questions, simply click on the big ? near the top of the page.</li>
+            <li>Specific help for parts of a page that may be unclear is available by tapping (or moving your mouse over) the small ? symbol which appears next to some questions.</li>
+            <li>You can come back at any time to revise your answers and keep your Will up to date, free of charge.</li>
+          </ul>
+          <p className="mb-4">Click on the "NEXT" button below to continue.</p>
+        </section>
+      );
+      
+      case 19:
+      return (
+        <section className="make-bequests">
+          <h2 className="text-2xl font-semibold mb-4">Make Bequests</h2>
+          <p className="mb-4">I would like to leave the following specific items to specific beneficiaries. Any of my possessions not specifically described here will go to my multiple main beneficiaries.</p>
+          {formData.bequests.map((bequest, index) => (
+            <div key={index} className="mb-4 p-4 border rounded">
+              <h3 className="text-xl font-semibold mb-2">Bequest {index + 1}</h3>
+              <select
+                className="w-full p-2 mb-2 border rounded"
+                value={bequest.beneficiary}
+                onChange={(e) => handleBequestChange(index, 'beneficiary', e.target.value)}
+              >
+                <option value="">Select a beneficiary</option>
+                {formData.beneficiaries.map((b, i) => (
+                  <option key={i} value={b.name}>{b.name}</option>
+                ))}
+              </select>
+              <select
+                className="w-full p-2 mb-2 border rounded"
+                value={bequest.item}
+                onChange={(e) => handleBequestChange(index, 'item', e.target.value)}
+              >
+                <option value="">Select an item</option>
+                <option value="Residual Estate">Residual Estate (1st Position)</option>
+                {/* Add other possession options here */}
+              </select>
+              <button
+                type="button"
+                onClick={() => removeBequest(index)}
+                className="bg-red-500 text-white p-2 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addBequest}
+            className="bg-blue-500 text-white p-2 rounded"
+          >
+            Add Bequest
+          </button>
+        </section>
+      );
+        case 20:
+            return(
+                <section>
+            <h2 className="text-2xl font-semibold mb-4">Residual Estate</h2>
+            {renderInput('residualEstate', 'beneficiaries', 'Beneficiaries (comma-separated)')}
+
+            <h2 className="text-2xl font-semibold mb-4">Signature and Witnesses</h2>
+            {renderInput(null, 'signatureDate', 'Signature Date')}
+            {formData.witnesses.map((_, index) => (
+              <div key={`witness-${index}`} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Witness {index + 1}</h3>
+                {renderInput('witnesses', 'name', 'Name', index)}
+                {renderInput('witnesses', 'address', 'Address', index)}
+                {renderInput('witnesses', 'occupation', 'Occupation', index)}
+              </div>
+            ))}
+          </section>
+            );
+
+        
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Last Will and Testament Generator</h1>
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <div
+              key={i}
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                i + 1 === currentStep
+                  ? 'bg-blue-500 text-white'
+                  : i + 1 < currentStep
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 text-gray-600'
+              }`}
+            >
+              {i + 1}
+            </div>
+          ))}
+        </div>
+        <div className="h-2 bg-gray-200 mt-2">
+          <div
+            className="h-full bg-blue-500"
+            style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
+          ></div>
+        </div>
+      </div>
+      <form onSubmit={handleGeneratePDF} className="space-y-8">
+        {renderStep()}
+        <div className="flex justify-between mt-8">
+          {currentStep > 1 && (
+            <button
+              type="button"
+              onClick={() => setCurrentStep(currentStep - 1)}
+              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Previous
+            </button>
+          )}
+          {currentStep < totalSteps && (
+            <button
+              type="button"
+              onClick={() => setCurrentStep(currentStep + 1)}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Next
+            </button>
+          )}
+          {currentStep === totalSteps && (
+            <button
+              type="submit"
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Generate Will
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default WillGenerator;
+
+
+
+const generatePDF = async (formData) => {
+    const pdfDoc = await PDFDocument.create();
+    const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+  
+    // Helper function to add a new page
+    const addPage = () => {
+      const page = pdfDoc.addPage([612, 792]); // US Letter size
+      
+      // Add header with page numbers and signature spaces
+      page.drawText(`Page - ${pdfDoc.getPageCount()} - of 5`, {
+        x: 50,
+        y: 750,
+        size: 12,
+        font: timesRoman
+      });
+  
+      // Add signature lines
+      page.drawText("(Please insert Testator's signature here)", {
+        x: 50,
+        y: 730,
+        size: 10,
+        font: timesRoman
+      });
+  
+      page.drawText("(Please insert Witness #1's signature here)", {
+        x: 250,
+        y: 730,
+        size: 10,
+        font: timesRoman
+      });
+  
+      page.drawText("(Please insert Witness #2's signature here)", {
+        x: 450,
+        y: 730,
+        size: 10,
+        font: timesRoman
+      });
+  
+      return { page, yOffset: 700 };
+    };
+  
+    // Helper function to write text with proper formatting
+    const writeText = (page, text, options = {}) => {
+      const {
+        x = 50,
+        y,
+        size = 12,
+        font = timesRoman,
+        color = rgb(0, 0, 0),
+        maxWidth = 500,
+        indent = 0
+      } = options;
+  
+      const words = text.split(' ');
+      let line = '';
+      let yPos = y;
+      const actualX = x + (indent * 20); // 20 points per indent level
+  
+      words.forEach(word => {
+        const testLine = line ? `${line} ${word}` : word;
+        const width = font.widthOfTextAtSize(testLine, size);
+  
+        if (width > maxWidth && line) {
+          page.drawText(line, { x: actualX, y: yPos, size, font, color });
+          line = word;
+          yPos -= size + 2;
+        } else {
+          line = testLine;
+        }
+      });
+  
+      if (line) {
+        page.drawText(line, { x: actualX, y: yPos, size, font, color });
+      }
+  
+      return yPos - (size + 2);
+    };
+  
+    // Check if we need a new page based on remaining space
+    const checkNewPage = (currentYOffset, neededSpace = 100) => {
+      if (currentYOffset < neededSpace) {
+        return addPage();
+      }
+      return { page, yOffset: currentYOffset };
+    };
+  
+    // Start generating PDF content
+    let { page, yOffset } = addPage();
+  
+    // Title
+    yOffset = writeText(page, 'LAST WILL AND TESTAMENT', {
+      y: yOffset,
+      size: 16,
+      font: timesBold
+    });
+    yOffset -= 20;
+  
+    // Introduction
+    yOffset = writeText(page, `THIS IS THE LAST WILL AND TESTAMENT of me ${formData.testatorInfo.prefix} ${formData.testatorInfo.fullName} ${formData.testatorInfo.suffix}, a ${formData.testatorInfo.occupation} whose address is ${formData.testatorInfo.address} in the parish of ${formData.testatorInfo.parish}.`, {
+      y: yOffset
+    });
+    yOffset -= 20;
+  
+    // Revocation clause
+    yOffset = writeText(page, '1. I HEREBY REVOKE all Wills and Testamentary dispositions heretofore by me made AND DECLARE this to be my Last Will and Testament.', {
+      y: yOffset
+    });
+    yOffset -= 20;
+  
+    // Executors
+    yOffset = writeText(page, '2. APPOINTMENT OF EXECUTORS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+  
+    formData.executors.forEach((executor, index) => {
+      const executorText = `I HEREBY APPOINT ${executor.fullName}, my ${executor.relationship}, ${executor.occupation}, of ${executor.address}, in the parish of ${executor.parish}${index < formData.executors.length - 1 ? ' AND' : ''}`;
+      yOffset = writeText(page, executorText, { y: yOffset });
+      yOffset -= 15;
+    });
+  
+    yOffset = writeText(page, 'to be the Executor and Trustee of this my Will (hereinafter referred to as "my Trustee").', {
+      y: yOffset
+    });
+    yOffset -= 20;
+  
+    // Debts and Expenses
+    yOffset = writeText(page, '3. I DIRECT that as soon as possible after my decease my Trustees shall pay all my just debts, funeral, tombing and testamentary expenses.', {
+      y: yOffset
+    });
+    yOffset -= 20;
+  
+    // Check for new page
+    ({ page, yOffset } = checkNewPage(yOffset));
+  
+    // Funeral Arrangements
+    yOffset = writeText(page, '4. FUNERAL AND BURIAL ARRANGEMENTS', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+  
+    yOffset = writeText(page, 'I HEREBY DIRECT that my body be prepared for burial in an appropriate manner and that my funeral expenses and any debts be paid out of my estate, along with the following:', {
+      y: yOffset
+    });
+    yOffset -= 20;
+  
+    // Funeral details
+    const funeralDetails = [
+      `a. That I be ${formData.funeralArrangements.details}`,
+      `b. That be clothed in ${formData.funeralArrangements.clothing}`,
+      `c. That my remains be placed ${formData.funeralArrangements.remains}`,
+      'd. That the following songs be included in my funeral programme',
+      'e. That the following songs be played at my funeral-'
+    ];
+  
+    funeralDetails.forEach(detail => {
+      yOffset = writeText(page, detail, { y: yOffset });
+      yOffset -= 15;
+    });
+  
+    formData.funeralArrangements.songs.forEach(song => {
+      yOffset = writeText(page, `- ${song}`, { y: yOffset, indent: 1 });
+      yOffset -= 10;
+    });
+  
+    // Check for new page
+    ({ page, yOffset } = checkNewPage(yOffset));
+  
+    // Possessions
+    yOffset = writeText(page, '5. I GIVE DEVISE AND BEQUEATH:', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 20;
+  
+    // Properties
+    if (formData.possessions.properties.length > 0) {
+      yOffset = writeText(page, 'a. PROPERTY', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      formData.possessions.properties.forEach((property, index) => {
+        const suffix = index === 0 ? 'st' : index === 1 ? 'nd' : 'rd';
+        yOffset = writeText(page, `${index + 1}${suffix} Property- situate at ${property.address}, in the parish of ${property.parish} registered at ${property.volume} and ${property.folio} of the Register Book of Titles to ${property.beneficiary}.`, {
+          y: yOffset,
+          indent: 1
+        });
+        yOffset -= 15;
+      });
+    }
+  
+    // Shares and Stocks
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    if (formData.possessions.shares.length > 0) {
+      yOffset = writeText(page, 'b. SHARES AND STOCKS', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      formData.possessions.shares.forEach((share, index) => {
+        yOffset = writeText(page, `${index + 1}. Shares in ${share.company} held in ${share.country} at ${share.exchange} in account numbered ${share.accountNumber} to ${share.beneficiary} of ${share.beneficiaryAddress}.`, {
+          y: yOffset,
+          indent: 1
+        });
+        yOffset -= 15;
+      });
+    }
+  
+    // Insurance
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    if (formData.possessions.insurance.length > 0) {
+      yOffset = writeText(page, 'c. INSURANCE', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      formData.possessions.insurance.forEach((policy, index) => {
+        yOffset = writeText(page, `${index === 0 ? 'i' : 'j'}. Proceeds of insurance policy numbered ${policy.policyNumber}, held at ${policy.company} located at ${policy.address}, ${policy.country} to ${policy.beneficiary}.`, {
+          y: yOffset,
+          indent: 1
+        });
+        yOffset -= 15;
+      });
+    }
+  
+    // Bank Accounts
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    if (formData.possessions.bankAccounts.length > 0) {
+      yOffset = writeText(page, 'd. BANK ACCOUNTS', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      formData.possessions.bankAccounts.forEach((account, index) => {
+        yOffset = writeText(page, `${index + 1}. Proceeds of bank account numbered ${account.accountNumber}, held at ${account.bank} located at ${account.address}, ${account.country} to ${account.beneficiary} of ${account.beneficiaryAddress}.`, {
+          y: yOffset,
+          indent: 1
+        });
+        yOffset -= 15;
+      });
+    }
+  
+    // Motor Vehicles
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    if (formData.possessions.vehicles.length > 0) {
+      yOffset = writeText(page, 'e. MOTOR VEHICLE', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      formData.possessions.vehicles.forEach((vehicle, index) => {
+        yOffset = writeText(page, `${index + 1}. ${vehicle.color} ${vehicle.make} ${vehicle.model} Motor vehicle bearing Licence plate number ${vehicle.licensePlate} and engine and chassis numbers ${vehicle.engineNumber} and ${vehicle.chassisNumber} to ${vehicle.beneficiary} of ${vehicle.beneficiaryAddress}.`, {
+          y: yOffset,
+          indent: 1
+        });
+        yOffset -= 15;
+      });
+    }
+  
+    // Unpaid Salary
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    if (formData.possessions.salary.employer) {
+      yOffset = writeText(page, 'f. UNPAID SALARY AND/EMOLUMENTS', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      yOffset = writeText(page, `Unpaid salary and/or emoluments with my employer, ${formData.possessions.salary.employer} located at ${formData.possessions.salary.address} to ${formData.possessions.salary.beneficiary}.`, {
+        y: yOffset
+      });
+      yOffset -= 20;
+    }
+  
+    // NHT Contributions
+    if (formData.possessions.nht.number) {
+      yOffset = writeText(page, 'g. NATIONAL HOUSING TRUST(NHT) CONTRIBUTIONS', {
+        y: yOffset,
+        font: timesBold
+      });
+      yOffset -= 10;
+  
+      yOffset = writeText(page, `Refund of National Housing Trust Contributions ${formData.possessions.nht.number} and ${formData.possessions.nht.tax} to ${formData.possessions.nht.beneficiary}.`, {
+        y: yOffset
+      });
+      yOffset -= 20;
+    }
+  
+    // Other possessions
+    const otherPossessions = [
+      { key: 'jewellery', title: 'h. JEWELLERY', prefix: 'described as my Jewellery to' },
+      { key: 'furniture', title: 'i. FURNITURE', prefix: 'Furniture to' },
+      { key: 'paintings', title: 'j. PAINTINGS', prefix: 'Paintings to' },
+      { key: 'firearm', title: 'k. FIREARM', prefix: 'Firearm bearing serial and firearm licence numbers' }
+    ];
+  
+    otherPossessions.forEach(possession => {
+      ({ page, yOffset } = checkNewPage(yOffset));
+      
+      const possessionData = formData.possessions[possession.key];
+      if (possessionData.beneficiary) {
+        yOffset = writeText(page, possession.title, {
+          y: yOffset,
+          font: timesBold
+        });
+        yOffset -= 10;
+  
+        if (possession.key === 'firearm') {
+          yOffset = writeText(page, `${possession.prefix} ${possessionData.serial} and ${possessionData.license} to ${possessionData.beneficiary}.`, {
+            y: yOffset
+          });
+        } else if (possession.key === 'jewellery') {
+          yOffset = writeText(page, `${possessionData.description} ${possession.prefix} ${possessionData.beneficiary}.`, {
+            y: yOffset
+          });
+        } else {
+          yOffset = writeText(page, `${possession.prefix} ${possessionData.beneficiary}.`, {
+            y: yOffset
+          });
+        }
+        yOffset -= 20;
+      }
+    });
+  
+    // Residual Estate
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    yOffset = writeText(page, '6. RESIDUAL ESTATE', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 10;
+  
+    yOffset = writeText(page, `I give, devise and bequeath all the rest, residue and remainder of my estate, including any proceeds from the sale of assets to ${formData.residualEstate.beneficiaries.join(', ')} in equal shares.`, {
+      y: yOffset
+    });
+    yOffset -= 20;
+  
+    // Signature section
+    ({ page, yOffset } = checkNewPage(yOffset));
+    
+    const currentDate = new Date();
+    yOffset = writeText(page, `IN WITNESS WHEREOF I have hereunto set my hand and seal this ${currentDate.getDate()} day of ${currentDate.toLocaleString('default', { month: 'long' })} ${currentDate.getFullYear()}`, {
+      y: yOffset
+    });
+    yOffset -= 40;
+  
+    yOffset = writeText(page, '____________________________', {
+      y: yOffset
+    });
+    yOffset -= 10;
+    yOffset = writeText(page, '(Testator to sign here)', {
+      y: yOffset,
+      size: 10
+    });
+    yOffset -= 20;
+  
+    // Witnesses section
+    ({ page, yOffset } = checkNewPage(yOffset, 200)); // Ensure enough space for witness section
+    
+    yOffset = writeText(page, 'WITNESSES', {
+      y: yOffset,
+      font: timesBold
+    });
+    yOffset -= 20;
+  
+    formData.witnesses.forEach((witness, index) => {
+      yOffset = writeText(page, 'Name and', {
+        y: yOffset
+      });
+      yOffset -= 10;
+  
+      yOffset = writeText(page, 'Signature: ____________________________', {
+        y: yOffset
+      });
+      yOffset -= 10;
+  
+      yOffset = writeText(page, witness.fullName, {
+        y: yOffset,
+        color: rgb(0, 0, 0.8) // Slightly blue to indicate filled information
+      });
+      yOffset -= 15;
+  
+      yOffset = writeText(page, 'Address:', {
+        y: yOffset
+      });
+      yOffset -= 10;
+  
+      yOffset = writeText(page, witness.address, {
+        y: yOffset,
+        color: rgb(0, 0, 0.8)
+      });
+      yOffset -= 15;
+  
+      yOffset = writeText(page, 'Occupation:', {
+        y: yOffset
+      });
+      yOffset -= 10;
+  
+      yOffset = writeText(page, witness.occupation, {
+        y: yOffset,
+        color: rgb(0, 0, 0.8)
+      });
+      yOffset -= 20;
+  
+      // Add space between witnesses
+      if (index < formData.witnesses.length - 1) {
+        yOffset -= 20;
+      }
+    });
+  
+    yOffset -= 20;
+    yOffset = writeText(page, 'Witnesses', {
+      y: yOffset
+    });
+    yOffset -= 10;
+    yOffset = writeText(page, 'to sign', {
+      y: yOffset
+    });
+    yOffset -= 10;
+    yOffset = writeText(page, 'here.', {
+      y: yOffset
+    });
+  
+    // Final declaration
+    ({ page, yOffset } = checkNewPage(yOffset, 150));
+    
+    yOffset = writeText(page, `SIGNED by the Testator the said ${formData.testatorInfo.fullName}, a ${formData.testatorInfo.occupation} of ${formData.testatorInfo.address}, in the parish of ${formData.testatorInfo.parish}, as my Last Will and Testament I declare that I have signed and executed this Last Will and Testament willingly and in the presence of the following witnesses, who are present at the same time and who have signed as witnesses in my presence:`, {
+      y: yOffset
+    });
+  
+    // Generate the final PDF
+    try {
+      const pdfBytes = await pdfDoc.save();
+      return { 
+        success: true, 
+        data: pdfBytes,
+        message: 'PDF generated successfully'
+      };
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to generate PDF'
+      };
+    }
+  };
+
+
+  <section className="space-y-6">
+            <h2 className="text-2xl font-semibold mb-4">Make Bequests</h2>
+            <p className="mb-6">
+              I would like to leave the following specific items to specific beneficiaries. 
+              Any of my possessions not specifically described here will go to my multiple main beneficiaries.
+            </p>
+      
+            {formData.bequests.map((bequest, index) => (
+              <div key={index} className="mb-4 p-4 border rounded">
+                <h3 className="text-xl font-semibold mb-2">Bequest {index + 1}</h3>
+                
+                <select
+                  value={bequest.beneficiaryId || ''}
+                  onChange={(e) => handleInputChange(e, 'bequests', 'beneficiaryId', index)}
+                  className="w-full p-2 mb-2 border rounded"
+                >
+                  <option value="">Select a beneficiary</option>
+                  {/* Children as beneficiaries */}
+                  {formData.children.map((child, idx) => (
+                    <option key={`child-${idx}`} value={`child-${child.fullName}`}>
+                      {child.fullName} (Child)
+                    </option>
+                  ))}
+                  {/* Additional beneficiaries */}
+                  {formData.additionalBeneficiaries?.map((ben, idx) => (
+                    <option key={`other-${idx}`} value={`other-${ben.fullName}`}>
+                      {ben.fullName} ({ben.type})
+                    </option>
+                  ))}
+                </select>
+      
+                <select
+                  value={bequest.item || ''}
+                  onChange={(e) => handleInputChange(e, 'bequests', 'item', index)}
+                  className="w-full p-2 mb-2 border rounded"
+                >
+                  <option value="">Select an item</option>
+                  {/* Properties */}
+                  {formData.properties.map((prop, idx) => (
+                    <option key={`property-${idx}`} value={`property-${idx}`}>
+                      Property at {prop.address}
+                    </option>
+                  ))}
+                  {/* Shares */}
+                  {formData.shares.map((share, idx) => (
+                    <option key={`share-${idx}`} value={`share-${idx}`}>
+                      Shares in {share.company}
+                    </option>
+                  ))}
+                  {/* Add other possession types as needed */}
+                </select>
+      
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newBequests = formData.bequests.filter((_, i) => i !== index);
+                    setFormData(prev => ({ ...prev, bequests: newBequests }));
+                  }}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+      
+            <button
+              type="button"
+              onClick={() => {
+                setFormData(prev => ({
+                  ...prev,
+                  bequests: [
+                    ...prev.bequests,
+                    { beneficiaryId: '', item: '' }
+                  ]
+                }));
+              }}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Add Bequest
+            </button>
+          </section>
+        );
+  
+        case 20:
+            return(
+              <section className="space-y-6">
+              <h2 className="text-2xl font-semibold mb-4">Generate Will</h2>
+              <p>Review your information and click the button below to generate your will.</p>
+              <button
+                onClick={handleGeneratePDF}
+                className="bg-green-500 text-white px-6 py-3 rounded hover:bg-green-600"
+              >
+                Generate Will PDF
+              </button>
+            </section>
+
+
+
+
+
+
+
+            // update code //
+
+
+
+
+
+
+            import React, { useState } from 'react';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+
+const WillGenerator = () => {
+  // Define totalSteps at the top level
+  const totalSteps = 20;
+  const [currentStep, setCurrentStep] = useState(1);
+  const [selectedPossession, setSelectedPossession] = useState('');
+
+  // Updated formData structure with proper initialization
+  const [formData, setFormData] = useState({
+    // ... other existing state ...
+    possessions: [],
+    selectedPossession: '',
+    properties: [],
+    shares: [],
+    insurance: [],
+    bankAccounts: [],
+    motorVehicles: [],
+    unpaidSalary: {
+      employer: '',
+      employerAddress: '',
+      beneficiary: ''
+    },
+    nhtContributions: {
+      nhtNumber: '',
+      taxNumber: '',
+      beneficiary: ''
+    },
+    jewellery: {
+      description: '',
+      beneficiary: ''
+    },
+    furniture: {
+      beneficiary: ''
+    },
+    paintings: {
+      beneficiary: ''
+    },
+    firearm: {
+      serialNumber: '',
+      licenseNumber: '',
+      beneficiary: ''
+    }
+  });
+
+  // Updated handleAddPossession function
+  const handleAddPossession = () => {
+    if (!formData.selectedPossession) return;
+
+    const newPossession = createEmptyPossession(formData.selectedPossession);
+    
+    setFormData(prev => ({
+      ...prev,
+      possessions: [...prev.possessions, newPossession]
+    }));
+  };
+
+  // Helper function to create empty possession based on type
+  const createEmptyPossession = (type) => {
+    switch (type) {
+      case 'Property':
+        return {
+          type: 'Property',
+          address: '',
+          parish: '',
+          volume: '',
+          folio: '',
+          beneficiary: ''
+        };
+      case 'Shares and Stocks':
+        return {
+          type: 'Shares and Stocks',
+          company: '',
+          country: '',
+          exchange: '',
+          accountNumber: '',
+          beneficiary: ''
+        };
+      case 'Bank Accounts':
+        return {
+          type: 'Bank Accounts',
+          accountNumber: '',
+          bank: '',
+          address: '',
+          country: '',
+          beneficiary: ''
+        };
+      case 'Motor Vehicle':
+        return {
+          type: 'Motor Vehicle',
+          color: '',
+          make: '',
+          model: '',
+          licensePlate: '',
+          engineNumber: '',
+          chassisNumber: '',
+          beneficiary: ''
+        };
+      // Add other possession types as needed
+      default:
+        return {
+          type,
+          details: '',
+          beneficiary: ''
+        };
+    }
+  };
+
+  // Updated handlePossessionUpdate function
+  const handlePossessionUpdate = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      possessions: prev.possessions.map((possession, i) => 
+        i === index ? { ...possession, [field]: value } : possession
+      )
+    }));
+  };
+
+  // Updated renderPossessionFields function
+  const renderPossessionFields = (possession, index) => {
+    switch (possession.type) {
+      case 'Property':
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <input
+              type="text"
+              placeholder="Address"
+              value={possession.address || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'address', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Parish"
+              value={possession.parish || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'parish', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Volume"
+              value={possession.volume || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'volume', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Folio"
+              value={possession.folio || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'folio', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Beneficiary"
+              value={possession.beneficiary || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'beneficiary', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+        );
+      case 'Motor Vehicle':
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <input
+              type="text"
+              placeholder="Color"
+              value={possession.color || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'color', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Make"
+              value={possession.make || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'make', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Model"
+              value={possession.model || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'model', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="License Plate"
+              value={possession.licensePlate || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'licensePlate', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Engine Number"
+              value={possession.engineNumber || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'engineNumber', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Chassis Number"
+              value={possession.chassisNumber || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'chassisNumber', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Beneficiary"
+              value={possession.beneficiary || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'beneficiary', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+        );
+      // Add other possession type cases as needed
+      default:
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <input
+              type="text"
+              placeholder="Details"
+              value={possession.details || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'details', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Beneficiary"
+              value={possession.beneficiary || ''}
+              onChange={(e) => handlePossessionUpdate(index, 'beneficiary', e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+        );
+    }
+  };
+
+  // Updated generatePDF function to properly include possessions
+  const generatePDF = async (formData) => {
+    const pdfDoc = await PDFDocument.create();
+    const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    
+    // ... rest of your PDF generation code ...
+
+    // Add possessions section
+    let yOffset = 600; // Adjust based on your needs
+    formData.possessions.forEach(possession => {
+      // Add possession details to PDF
+      switch (possession.type) {
+        case 'Property':
+          yOffset = writeText(currentPage, `Property at ${possession.address}`, { y: yOffset });
+          yOffset = writeText(currentPage, `Parish: ${possession.parish}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Volume: ${possession.volume}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Folio: ${possession.folio}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Beneficiary: ${possession.beneficiary}`, { y: yOffset, indent: 1 });
+          break;
+        case 'Motor Vehicle':
+          yOffset = writeText(currentPage, `Motor Vehicle Details:`, { y: yOffset });
+          yOffset = writeText(currentPage, `Make: ${possession.make} ${possession.model}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Color: ${possession.color}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `License Plate: ${possession.licensePlate}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Engine Number: ${possession.engineNumber}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Chassis Number: ${possession.chassisNumber}`, { y: yOffset, indent: 1 });
+          yOffset = writeText(currentPage, `Beneficiary: ${possession.beneficiary}`, { y: yOffset, indent: 1 });
+          break;
+        // Add other possession types
+      }
+      yOffset -= 20; // Add spacing between possessions
+    });
+
+    return pdfDoc.save();
+  };
+
+  // ... rest of your component code ...
+
+  return (
+    <div className="container mx-auto p-4">
+      {/* ... existing JSX ... */}
+    </div>
+  );
+};
+
+export default WillGenerator;
+
+
+1192 code 
+
+// code //
+
+  const formatPossessionDetails = (type, item) => {
+    switch (type) {
+      case 'properties':
+        return [
+          `Address: ${item.address || ''}`,
+          `Parish: ${item.parish || ''}`,
+          `Volume: ${item.volume || ''}`,
+          `Folio: ${item.folio || ''}`,
+          `Beneficiary: ${item.beneficiary || ''}`
+        ];
+      case 'vehicles':
+        return [
+          `Make: ${item.make || ''}`,
+          `Model: ${item.model || ''}`,
+          `Color: ${item.color || ''}`,
+          `License Plate: ${item.licensePlate || ''}`,
+          `Engine Number: ${item.engineNumber || ''}`,
+          `Chassis Number: ${item.chassisNumber || ''}`,
+          `Beneficiary: ${item.beneficiary || ''}`
+        ];
+      // Add cases for other possession types
+      default:
+        return [];
+    }
+  };
+
