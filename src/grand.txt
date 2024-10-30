@@ -295,3 +295,775 @@ const formatPossessionForPDF = (possession) => {
     );
   };
   
+
+
+
+
+
+
+  // upadte version // 
+
+
+
+
+  const BeneficiarySelect = ({ possession, index, onUpdate }) => {
+    // Get all possible beneficiaries by combining children and additional beneficiaries
+    const allBeneficiaries = [
+      ...(formData.children || []).map(child => ({
+        id: `child-${child.fullName}`,
+        fullName: child.fullName,
+        type: 'Child',
+        relationship: child.relationship,
+        email: child.email,
+        address: child.address,
+        parish: child.parish,
+        occupation: child.occupation
+      })),
+      ...(formData.additionalBeneficiaries || []).map((ben, idx) => ({
+        id: `other-${ben.fullName}-${idx}`,
+        fullName: ben.fullName,
+        type: ben.type,
+        relationship: ben.relationship,
+        email: ben.email,
+        address: ben.address,
+        parish: ben.parish
+      }))
+    ];
+  
+    // Function to add a new beneficiary to the possession
+    const handleAddBeneficiary = (selectedBeneficiaryId) => {
+      const selectedBeneficiary = allBeneficiaries.find(b => b.id === selectedBeneficiaryId);
+      if (selectedBeneficiary) {
+        const updatedBeneficiaries = [
+          ...(possession.beneficiaries || []),
+          {
+            id: selectedBeneficiary.id,
+            fullName: selectedBeneficiary.fullName,
+            type: selectedBeneficiary.type,
+            relationship: selectedBeneficiary.relationship,
+            email: selectedBeneficiary.email,
+            address: selectedBeneficiary.address,
+            parish: selectedBeneficiary.parish,
+            sharePercentage: 0 // Default share percentage
+          }
+        ];
+  
+        onUpdate(index, {
+          ...possession,
+          beneficiaries: updatedBeneficiaries
+        });
+      }
+    };
+  
+    // Function to remove a beneficiary
+    const handleRemoveBeneficiary = (beneficiaryIndex) => {
+      const updatedBeneficiaries = possession.beneficiaries.filter((_, idx) => idx !== beneficiaryIndex);
+      onUpdate(index, {
+        ...possession,
+        beneficiaries: updatedBeneficiaries
+      });
+    };
+  
+    // Function to update beneficiary share percentage
+    const handleUpdateShare = (beneficiaryIndex, sharePercentage) => {
+      const updatedBeneficiaries = possession.beneficiaries.map((ben, idx) => {
+        if (idx === beneficiaryIndex) {
+          return { ...ben, sharePercentage: parseFloat(sharePercentage) || 0 };
+        }
+        return ben;
+      });
+  
+      onUpdate(index, {
+        ...possession,
+        beneficiaries: updatedBeneficiaries
+      });
+    };
+  
+    return (
+      <div className="space-y-6">
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Add Beneficiary
+          </label>
+          <div className="flex space-x-2">
+            <select
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              onChange={(e) => handleAddBeneficiary(e.target.value)}
+              value=""
+            >
+              <option value="">Select a beneficiary</option>
+              
+              {/* Children Group */}
+              {formData.children?.length > 0 && (
+                <optgroup label="Children">
+                  {formData.children.map((child, idx) => {
+                    const isSelected = possession.beneficiaries?.some(b => b.id === `child-${child.fullName}`);
+                    if (!isSelected) {
+                      return (
+                        <option key={`child-${idx}`} value={`child-${child.fullName}`}>
+                          {child.fullName} (Child)
+                        </option>
+                      );
+                    }
+                    return null;
+                  })}
+                </optgroup>
+              )}
+              
+              {/* Additional Beneficiaries Group */}
+              {formData.additionalBeneficiaries?.length > 0 && (
+                <optgroup label="Other Beneficiaries">
+                  {formData.additionalBeneficiaries.map((ben, idx) => {
+                    const isSelected = possession.beneficiaries?.some(b => b.id === `other-${ben.fullName}-${idx}`);
+                    if (!isSelected) {
+                      return (
+                        <option key={`ben-${idx}`} value={`other-${ben.fullName}-${idx}`}>
+                          {ben.fullName} ({ben.type})
+                        </option>
+                      );
+                    }
+                    return null;
+                  })}
+                </optgroup>
+              )}
+            </select>
+          </div>
+        </div>
+  
+        {/* Display selected beneficiaries */}
+        {possession.beneficiaries && possession.beneficiaries.length > 0 && (
+          <div className="mt-4">
+            <h4 className="font-semibold mb-4">Selected Beneficiaries:</h4>
+            <div className="space-y-4">
+              {possession.beneficiaries.map((beneficiary, idx) => (
+                <div key={beneficiary.id} className="p-4 bg-gray-50 rounded-lg relative border">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveBeneficiary(idx)}
+                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                  >
+                    ×
+                  </button>
+                  
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <span className="font-medium">Name:</span> {beneficiary.fullName}
+                    </div>
+                    <div>
+                      <span className="font-medium">Type:</span> {beneficiary.type}
+                    </div>
+                    <div>
+                      <span className="font-medium">Relationship:</span> {beneficiary.relationship}
+                    </div>
+                    <div>
+                      <span className="font-medium">Email:</span> {beneficiary.email}
+                    </div>
+                    <div>
+                      <span className="font-medium">Address:</span> {beneficiary.address}
+                    </div>
+                    {beneficiary.parish && (
+                      <div>
+                        <span className="font-medium">Parish:</span> {beneficiary.parish}
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">Share Percentage:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={beneficiary.sharePercentage || 0}
+                        onChange={(e) => handleUpdateShare(idx, e.target.value)}
+                        className="shadow appearance-none border rounded w-24 py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      />
+                      <span>%</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+  
+              {/* Show total share percentage */}
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <div className="font-medium">
+                  Total Share: {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0)}%
+                </div>
+                {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0) !== 100 && (
+                  <div className="text-red-500 text-sm mt-1">
+                    Note: Total share percentage should equal 100%
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+
+
+// form possesion pdf //
+
+
+const formatPossessionForPDF = (possession) => {
+  // Helper function to format beneficiary details
+  const formatBeneficiaryDetails = (beneficiaries) => {
+    if (!beneficiaries || beneficiaries.length === 0) return '';
+    
+    return beneficiaries.map(b => 
+      `${b.fullName}${b.type === 'Child' ? ' (Child)' : ''} ` +
+      `(${b.relationship}) of ${b.address}${b.parish ? `, ${b.parish}` : ''} ` +
+      `with a ${b.sharePercentage}% share`
+    ).join(' AND ');
+  };
+
+  // Get formatted beneficiary details
+  const beneficiaryDetails = formatBeneficiaryDetails(possession.beneficiaries);
+  
+  // Base text for when no beneficiaries are specified
+  const noBeneficiariesText = 'with no specified beneficiaries';
+  
+  // Format based on possession type
+  switch (possession.type) {
+    case 'Property':
+      return `Property- situate at ${possession.address}, in the parish of ${possession.parish} ` +
+             `registered at Volume ${possession.volume} and Folio ${possession.folio} of the Register ` +
+             `Book of Titles to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Shares and Stocks':
+      return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} ` +
+             `in account numbered ${possession.accountNumber}, comprising ${possession.numberOfShares} shares ` +
+             `with certificate numbers ${possession.certificateNumbers} to be shared between ` +
+             `${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Insurance':
+      return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} ` +
+             `located at ${possession.address}, ${possession.country}, being a ${possession.policyType} policy ` +
+             `with sum insured of ${possession.sumInsured} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Bank Accounts':
+      return `Proceeds of ${possession.accountType} account numbered ${possession.accountNumber}, ` +
+             `held at ${possession.bank} located at ${possession.address}, ${possession.country}, ` +
+             `in ${possession.currency} currency to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Motor Vehicle':
+      return `${possession.color} ${possession.year} ${possession.make} ${possession.model} Motor vehicle ` +
+             `bearing License plate number ${possession.licensePlate} and engine number ${possession.engineNumber} ` +
+             `and chassis number ${possession.chassisNumber}, currently located at ${possession.parkingLocation} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Unpaid Salary':
+      return `Unpaid salary and/or emoluments with my employer, ${possession.employer} ` +
+             `located at ${possession.employerAddress}, Employee ID: ${possession.employmentId}, ` +
+             `covering the period ${possession.periodCovered} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'NHT Contributions':
+      return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, ` +
+             `Tax Number: ${possession.taxNumber}), with total contributions of ${possession.totalContributions} ` +
+             `up to ${possession.lastContributionDate} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Jewellery':
+      return `Jewellery described as ${possession.description}, being a ${possession.itemType} ` +
+             `made of ${possession.material}${possession.stones ? `, set with ${possession.stones}` : ''}, ` +
+             `valued at ${possession.appraisalValue}, currently located at ${possession.location} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Furniture':
+      return `Furniture ${possession.description ? `described as ${possession.description}, ` : ''}` +
+             `currently located at ${possession.location}, ` +
+             `valued at ${possession.estimatedValue} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Paintings':
+      return `Painting titled "${possession.title}" by artist ${possession.artist}, ` +
+             `created in ${possession.yearCreated}, ${possession.medium}, ` +
+             `measuring ${possession.dimensions}, currently located at ${possession.location}, ` +
+             `valued at ${possession.appraisalValue} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Firearm':
+      return `Firearm bearing serial number ${possession.serialNumber} and firearm licence ` +
+             `number ${possession.licenseNumber}, being a ${possession.make} ${possession.model} ` +
+             `${possession.caliber} caliber ${possession.type}, stored at ${possession.storageLocation} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Digital Assets':
+      return `Digital assets described as ${possession.assetType} held on ${possession.platform}, ` +
+             `account identifier ${possession.accountDetails}, with estimated value of ${possession.estimatedValue} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Intellectual Property':
+      return `Intellectual Property rights being ${possession.type} registered under number ${possession.registrationNumber} ` +
+             `in ${possession.jurisdiction}, valid until ${possession.expiryDate}, ` +
+             `with associated rights ${possession.rightsOwned} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Business Interests':
+      return `Business interests in ${possession.companyName} (Registration Number: ${possession.registrationNumber}), ` +
+             `being a ${possession.businessType} with ${possession.ownershipPercentage}% ownership, ` +
+             `valued at ${possession.valuationDetails} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    case 'Residual Estate':
+      return `Residual estate comprising ${possession.description}, ` +
+             `with estimated value of ${possession.estimatedValue}, subject to ${possession.specialConditions} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+
+    default:
+      return `${possession.type}: ${possession.description || 'No description provided'} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+  }
+};
+
+    // update grand child section //  
+
+
+ const GrandchildrenSection = ({ formData, handleInputChange, removeGrandchild, addGrandchild }) => {
+    if (formData.livingGrandchildren !== 'yes') return null;
+  
+    return (
+      <div className="mt-6">
+        <div className="mb-4">
+          <label className="block mb-4 text-gray-600">
+            Identifying all of your grandchildren is optional. It allows you to choose them later
+            in this wizard if you decide to leave them some of your assets. If you do not plan
+            on leaving anything specific to your grandchildren, you can simply skip this page.
+          </label>
+          
+          <div className="mb-4">
+            <label className="flex items-center space-x-3">
+              <input
+                type="radio"
+                name="grandchildrenInclusion"
+                value="notLeaving"
+                checked={formData.grandchildrenInclusion === 'notLeaving'}
+                onChange={(e) => handleInputChange(e, null, 'grandchildrenInclusion')}
+                className="form-radio"
+              />
+              <span>I have grandchildren, but I am NOT leaving them something directly in my Will</span>
+            </label>
+          </div>
+  
+          <div className="mb-4">
+            <label className="flex items-center space-x-3">
+              <input
+                type="radio"
+                name="grandchildrenInclusion"
+                value="mightLeave"
+                checked={formData.grandchildrenInclusion === 'mightLeave'}
+                onChange={(e) => handleInputChange(e, null, 'grandchildrenInclusion')}
+                className="form-radio"
+              />
+              <span>I have grandchildren, and I MIGHT OR MIGHT NOT leave them something in my Will</span>
+            </label>
+          </div>
+        </div>
+  
+        {formData.grandchildrenInclusion === 'mightLeave' && (
+          <>
+            {formData.grandchildren.map((grandchild, index) => (
+              <div key={index} className="p-6 border rounded-lg shadow-sm space-y-4 mb-6">
+                <h3 className="text-xl font-semibold mb-4">
+                  {index === 0 ? "Grandchild's" : `#${index + 1} Grandchild's`} Details
+                </h3>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Grandchild's Full Name
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.fullName || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'fullName', index)}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Relationship
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-x-4">
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name={`relationship-${index}`}
+                        value="grandson"
+                        checked={grandchild.relationship === 'grandson'}
+                        onChange={(e) => handleInputChange(e, 'grandchildren', 'relationship', index)}
+                        className="mr-2"
+                      />
+                      Grand Son
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name={`relationship-${index}`}
+                        value="granddaughter"
+                        checked={grandchild.relationship === 'granddaughter'}
+                        onChange={(e) => handleInputChange(e, 'grandchildren', 'relationship', index)}
+                        className="mr-2"
+                      />
+                      Grand Daughter
+                    </label>
+                  </div>
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Date of Birth
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={grandchild.dateOfBirth || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'dateOfBirth', index)}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={grandchild.email || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'email', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Occupation
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.occupation || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'occupation', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.address || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'address', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Parish
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.parish || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'parish', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <button
+                  type="button"
+                  onClick={() => removeGrandchild(index)}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Remove Grandchild
+                </button>
+              </div>
+            ))}
+  
+            <button
+              type="button"
+              onClick={addGrandchild}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Add Grandchild
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
+
+2083
+
+ const checkNewPage = (currentYOffset, pageNum, neededSpace = 100) => {
+        if (currentYOffset < neededSpace) {
+          return addPage(pageNum);
+        }
+        return { page: currentPage, yOffset: currentYOffset };
+      };
+  
+
+
+
+
+  // update code //
+
+
+   
+    const GrandchildrenSection = ({ formData, handleInputChange, removeGrandchild, addGrandchild }) => {
+    if (formData.livingGrandchildren !== 'yes') return null;
+  
+    return (
+      <div className="mt-6">
+        <div className="mb-4">
+          <label className="block mb-4 text-gray-600">
+            Identifying all of your grandchildren is optional. It allows you to choose them later
+            in this wizard if you decide to leave them some of your assets. If you do not plan
+            on leaving anything specific to your grandchildren, you can simply skip this page.
+          </label>
+          
+          <div className="mb-4">
+            <label className="flex items-center space-x-3">
+              <input
+                type="radio"
+                name="grandchildrenInclusion"
+                value="notLeaving"
+                checked={formData.grandchildrenInclusion === 'notLeaving'}
+                onChange={(e) => handleInputChange(e, null, 'grandchildrenInclusion')}
+                className="form-radio"
+              />
+              <span>I have grandchildren, but I am NOT leaving them something directly in my Will</span>
+            </label>
+          </div>
+  
+          <div className="mb-4">
+            <label className="flex items-center space-x-3">
+              <input
+                type="radio"
+                name="grandchildrenInclusion"
+                value="mightLeave"
+                checked={formData.grandchildrenInclusion === 'mightLeave'}
+                onChange={(e) => handleInputChange(e, null, 'grandchildrenInclusion')}
+                className="form-radio"
+              />
+              <span>I have grandchildren, and I MIGHT OR MIGHT NOT leave them something in my Will</span>
+            </label>
+          </div>
+        </div>
+  
+        {formData.grandchildrenInclusion === 'mightLeave' && (
+          <>
+            {formData.grandchildren.map((grandchild, index) => (
+              <div key={index} className="p-6 border rounded-lg shadow-sm space-y-4 mb-6">
+                <h3 className="text-xl font-semibold mb-4">
+                  {index === 0 ? "Grandchild's" : `#${index + 1} Grandchild's`} Details
+                </h3>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Grandchild's Full Name
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.fullName || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'fullName', index)}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Relationship
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-x-4">
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name={`relationship-${index}`}
+                        value="grandson"
+                        checked={grandchild.relationship === 'grandson'}
+                        onChange={(e) => handleInputChange(e, 'grandchildren', 'relationship', index)}
+                        className="mr-2"
+                      />
+                      Grand Son
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name={`relationship-${index}`}
+                        value="granddaughter"
+                        checked={grandchild.relationship === 'granddaughter'}
+                        onChange={(e) => handleInputChange(e, 'grandchildren', 'relationship', index)}
+                        className="mr-2"
+                      />
+                      Grand Daughter
+                    </label>
+                  </div>
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Date of Birth
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={grandchild.dateOfBirth || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'dateOfBirth', index)}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={grandchild.email || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'email', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Occupation
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.occupation || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'occupation', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.address || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'address', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Parish
+                  </label>
+                  <input
+                    type="text"
+                    value={grandchild.parish || ''}
+                    onChange={(e) => handleInputChange(e, 'grandchildren', 'parish', index)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+  
+                <button
+                  type="button"
+                  onClick={() => removeGrandchild(index)}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Remove Grandchild
+                </button>
+              </div>
+            ))}
+  
+            <button
+              type="button"
+              onClick={addGrandchild}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Add Grandchild
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // handle inputchange // 
+
+
+
+  const handleInputChange = (e, section, field, index = null) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    
+    setFormData(prev => {
+      const newData = { ...prev };
+      
+      if (section && index !== null) {
+        // Handle array updates
+        if (!Array.isArray(newData[section])) {
+          newData[section] = [];
+        }
+        
+        if (!newData[section][index]) {
+          newData[section][index] = {};
+        }
+        
+        newData[section] = [
+          ...newData[section].slice(0, index),
+          {
+            ...newData[section][index],
+            [field]: value
+          },
+          ...newData[section].slice(index + 1)
+        ];
+      } else if (section) {
+        // Handle nested object updates
+        if (!newData[section]) {
+          newData[section] = {};
+        }
+        newData[section] = {
+          ...newData[section],
+          [field]: value
+        };
+      } else {
+        // Handle direct updates
+        newData[field] = value;
+      }
+      
+      return newData;
+    });
+  };
+  
+
+// case 3 //
+
+ <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">Living Grandchildren</label>
+          <div className="flex space-x-4">
+          {['Yes', 'No'].map((option) => (
+          <label key={option} className="inline-flex items-center">
+          <input
+          type="radio"
+          className="form-radio"
+          name="livingGrandchildren"
+          value={option.toLowerCase()}
+          checked={formData.livingGrandchildren === option.toLowerCase()}
+          onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
+          />
+          <span className="ml-2">{option}</span>
+          </label>
+           ))}
+          </div>
+          </div>
+          {/* Add the GrandchildrenSection component */}
+          <GrandchildrenSection
+          formData={formData}
+          handleInputChange={handleInputChange}
+          removeGrandchild={removeGrandchild}
+          addGrandchild={addGrandchild}
+          />
+          </section>
+           )

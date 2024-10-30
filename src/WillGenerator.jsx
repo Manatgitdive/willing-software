@@ -27,6 +27,8 @@ const WillGenerator = () => {
       relation: '',
       occupation: ''
     },
+
+  
   
     // Children
     children: [],
@@ -56,8 +58,8 @@ const WillGenerator = () => {
       { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' }
     ],
     witnesses: [
-      { name: '', address: '', parish: '', occupation: '' },
-      { name: '', address: '', parish: '',  occupation: '' }
+      { name: '', email: '', address: '', parish: '', occupation: '' },
+      { name: '', email: '', address: '', parish: '',  occupation: '' }
     ],
 
     // Possessions
@@ -127,7 +129,20 @@ const WillGenerator = () => {
     signatureDate: ''
   });
 
+   
+  const handleGrandchildChange = (e, index, field) => {
+    const { value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      grandchildren: prev.grandchildren.map((gc, i) => 
+        i === index ? { ...gc, [field]: value } : gc
+      )
+    }));
+  };
+    
+     
 
+  
   const GrandchildrenSection = ({ formData, handleInputChange, removeGrandchild, addGrandchild }) => {
     if (formData.livingGrandchildren !== 'yes') return null;
   
@@ -306,6 +321,393 @@ const WillGenerator = () => {
       </div>
     );
   };
+  
+
+ 
+  const handleInputChange = (e, section, field, index = null) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    
+    setFormData(prev => {
+      const newData = { ...prev };
+      
+      if (section && index !== null) {
+        // Handle array updates
+        if (!Array.isArray(newData[section])) {
+          newData[section] = [];
+        }
+        
+        if (!newData[section][index]) {
+          newData[section][index] = {};
+        }
+        
+        newData[section] = [
+          ...newData[section].slice(0, index),
+          {
+            ...newData[section][index],
+            [field]: value
+          },
+          ...newData[section].slice(index + 1)
+        ];
+      } else if (section) {
+        // Handle nested object updates
+        if (!newData[section]) {
+          newData[section] = {};
+        }
+        newData[section] = {
+          ...newData[section],
+          [field]: value
+        };
+      } else {
+        // Handle direct updates
+        newData[field] = value;
+      }
+      
+      return newData;
+    });
+  };
+  
+  
+    
+     
+
+
+  
+  const BeneficiarySelect = ({ possession, index, onUpdate }) => {
+    // Combine all possible beneficiaries (children, grandchildren, and additional beneficiaries)
+    const allBeneficiaries = [
+      // Children as beneficiaries
+      ...(formData.children || []).map(child => ({
+        id: `child-${child.fullName}`,
+        fullName: child.fullName,
+        type: 'Child',
+        relationship: child.relationship,
+        email: child.email,
+        address: child.address,
+        parish: child.parish,
+        occupation: child.occupation
+      })),
+      // Grandchildren as beneficiaries
+      ...(formData.grandchildren || []).map(grandchild => ({
+        id: `grandchild-${grandchild.fullName}`,
+        fullName: grandchild.fullName,
+        type: 'Grandchild',
+        relationship: grandchild.relationship,
+        email: grandchild.email,
+        address: grandchild.address,
+        parish: grandchild.parish,
+        occupation: grandchild.occupation
+      })),
+      // Additional beneficiaries
+      ...(formData.additionalBeneficiaries || []).map((ben, idx) => ({
+        id: `other-${ben.fullName}-${idx}`,
+        fullName: ben.fullName,
+        type: ben.type,
+        relationship: ben.relationship,
+        email: ben.email,
+        address: ben.address,
+        parish: ben.parish
+      }))
+    ];
+  
+    return (
+      <div className="space-y-4">
+        <label className="block text-gray-700 text-sm font-bold mb-2">
+          Add Beneficiary
+        </label>
+        <div className="flex space-x-2">
+          <select
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            onChange={(e) => {
+              const selectedBeneficiary = allBeneficiaries.find(b => b.id === e.target.value);
+              if (selectedBeneficiary) {
+                const updatedBeneficiaries = [
+                  ...(possession.beneficiaries || []),
+                  {
+                    ...selectedBeneficiary,
+                    sharePercentage: 0
+                  }
+                ];
+  
+                onUpdate(index, {
+                  ...possession,
+                  beneficiaries: updatedBeneficiaries
+                });
+              }
+              e.target.value = ''; // Reset select after adding
+            }}
+            value=""
+          >
+            <option value="">Select a beneficiary</option>
+            
+            {/* Children Group */}
+            {formData.children?.length > 0 && (
+              <optgroup label="Children">
+                {formData.children.map((child, idx) => {
+                  const isSelected = possession.beneficiaries?.some(b => b.id === `child-${child.fullName}`);
+                  if (!isSelected) {
+                    return (
+                      <option key={`child-${idx}`} value={`child-${child.fullName}`}>
+                        {child.fullName} (Child - {child.relationship})
+                      </option>
+                    );
+                  }
+                  return null;
+                })}
+              </optgroup>
+            )}
+  
+            {/* Grandchildren Group */}
+            {formData.grandchildren?.length > 0 && (
+              <optgroup label="Grandchildren">
+                {formData.grandchildren.map((grandchild, idx) => {
+                  const isSelected = possession.beneficiaries?.some(b => b.id === `grandchild-${grandchild.fullName}`);
+                  if (!isSelected) {
+                    return (
+                      <option key={`grandchild-${idx}`} value={`grandchild-${grandchild.fullName}`}>
+                        {grandchild.fullName} (Grandchild - {grandchild.relationship})
+                      </option>
+                    );
+                  }
+                  return null;
+                })}
+              </optgroup>
+            )}
+            
+            {/* Additional Beneficiaries Group */}
+            {formData.additionalBeneficiaries?.length > 0 && (
+              <optgroup label="Other Beneficiaries">
+                {formData.additionalBeneficiaries.map((ben, idx) => {
+                  const isSelected = possession.beneficiaries?.some(b => b.id === `other-${ben.fullName}-${idx}`);
+                  if (!isSelected) {
+                    return (
+                      <option key={`ben-${idx}`} value={`other-${ben.fullName}-${idx}`}>
+                        {ben.fullName} ({ben.type})
+                      </option>
+                    );
+                  }
+                  return null;
+                })}
+              </optgroup>
+            )}
+          </select>
+        </div>
+  
+        {/* Display selected beneficiaries */}
+        {possession.beneficiaries?.length > 0 && (
+          <div className="mt-4">
+            <h4 className="font-semibold mb-4">Selected Beneficiaries:</h4>
+            <div className="space-y-4">
+              {possession.beneficiaries.map((beneficiary, idx) => (
+                <div key={beneficiary.id} className="p-4 bg-gray-50 rounded-lg relative border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdate(index, {
+                        ...possession,
+                        beneficiaries: possession.beneficiaries.filter((_, i) => i !== idx)
+                      });
+                    }}
+                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                  >
+                    ×
+                  </button>
+                  
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <span className="font-medium">Name:</span> {beneficiary.fullName}
+                    </div>
+                    <div>
+                      <span className="font-medium">Type:</span> {beneficiary.type}
+                    </div>
+                    <div>
+                      <span className="font-medium">Relationship:</span> {beneficiary.relationship}
+                    </div>
+                    <div>
+                      <span className="font-medium">Email:</span> {beneficiary.email}
+                    </div>
+                    <div>
+                      <span className="font-medium">Address:</span> {beneficiary.address}
+                    </div>
+                    {beneficiary.parish && (
+                      <div>
+                        <span className="font-medium">Parish:</span> {beneficiary.parish}
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">Share Percentage:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={beneficiary.sharePercentage || 0}
+                        onChange={(e) => {
+                          const updatedBeneficiaries = possession.beneficiaries.map((b, i) =>
+                            i === idx ? { ...b, sharePercentage: parseFloat(e.target.value) || 0 } : b
+                          );
+                          onUpdate(index, {
+                            ...possession,
+                            beneficiaries: updatedBeneficiaries
+                          });
+                        }}
+                        className="shadow appearance-none border rounded w-24 py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      />
+                      <span>%</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+  
+              {/* Show total share percentage */}
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <div className="font-medium">
+                  Total Share: {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0)}%
+                </div>
+                {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0) !== 100 && (
+                  <div className="text-red-500 text-sm mt-1">
+                    Note: Total share percentage should equal 100%
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+     
+
+
+       
+  const SaveDetailsSection = ({ handleSave }) => {
+    return (
+      <section className="max-w-4xl mx-auto space-y-8">
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-8 rounded-lg shadow-lg">
+          <h2 className="text-3xl font-bold text-blue-800 mb-6 text-center">
+            Secure Your Progress
+          </h2>
+  
+          {/* Main Save Card */}
+          <div className="bg-white p-8 rounded-xl shadow-md mb-8">
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-2">Save Your Will Details</h3>
+              <p className="text-gray-600 text-center max-w-md mb-6">
+                Secure all your important information with just one click. You can always come back and modify it later.
+              </p>
+            </div>
+  
+            {/* Save Actions */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Local Save */}
+              <div className="bg-blue-50 p-6 rounded-lg border border-blue-100">
+                <h4 className="text-lg font-semibold text-blue-800 mb-3">Quick Save</h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Save your progress locally in your browser
+                </p>
+                <button
+                  onClick={() => handleSave('local')}
+                  className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition transform hover:scale-105 flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                  </svg>
+                  Save Locally
+                </button>
+              </div>
+  
+              {/* Download JSON */}
+              <div className="bg-purple-50 p-6 rounded-lg border border-purple-100">
+                <h4 className="text-lg font-semibold text-purple-800 mb-3">Download Backup</h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Download your data as a backup file
+                </p>
+                <button
+                  onClick={() => handleSave('download')}
+                  className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition transform hover:scale-105 flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download Backup
+                </button>
+              </div>
+            </div>
+          </div>
+  
+          {/* Features Grid */}
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="text-green-500 mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Secure Storage</h3>
+              <p className="text-gray-600 text-sm">Your data is securely stored and encrypted</p>
+            </div>
+  
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="text-blue-500 mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Easy Updates</h3>
+              <p className="text-gray-600 text-sm">Return anytime to modify your details</p>
+            </div>
+  
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="text-purple-500 mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Backup Protection</h3>
+              <p className="text-gray-600 text-sm">Download a copy for safekeeping</p>
+            </div>
+          </div>
+  
+          {/* Important Notice */}
+          <div className="mt-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  Remember to save your progress regularly. Your information is valuable - keep it safe!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
+   
+  const handleSave = () => {
+    try {
+      // Save to localStorage
+      localStorage.setItem('willFormData', JSON.stringify(formData));
+      alert('Progress saved successfully!');
+    } catch (error) {
+      console.error('Error saving data:', error);
+      alert('Failed to save progress. Please try again.');
+    }
+  };
+    
+
+
 
     
   const addGrandchild = () => {
@@ -681,207 +1083,117 @@ const WillGenerator = () => {
     // const newVehicle = createEmptyPossession('Motor Vehicle');
 
 
-
-
-
-  
-
-
-
-  const BeneficiarySelect = ({ possession, index, onUpdate }) => {
-    // Get all possible beneficiaries by combining children and additional beneficiaries
-    const allBeneficiaries = [
-      ...(formData.children || []).map(child => ({
-        id: `child-${child.fullName}`,
-        fullName: child.fullName,
-        type: 'Child',
-        relationship: child.relationship,
-        email: child.email,
-        address: child.address,
-        parish: child.parish,
-        occupation: child.occupation
-      })),
-      ...(formData.additionalBeneficiaries || []).map((ben, idx) => ({
-        id: `other-${ben.fullName}-${idx}`,
-        fullName: ben.fullName,
-        type: ben.type,
-        relationship: ben.relationship,
-        email: ben.email,
-        address: ben.address,
-        parish: ben.parish
-      }))
-    ];
-  
-    // Function to add a new beneficiary to the possession
-    const handleAddBeneficiary = (selectedBeneficiaryId) => {
-      const selectedBeneficiary = allBeneficiaries.find(b => b.id === selectedBeneficiaryId);
-      if (selectedBeneficiary) {
-        const updatedBeneficiaries = [
-          ...(possession.beneficiaries || []),
-          {
-            id: selectedBeneficiary.id,
-            fullName: selectedBeneficiary.fullName,
-            type: selectedBeneficiary.type,
-            relationship: selectedBeneficiary.relationship,
-            email: selectedBeneficiary.email,
-            address: selectedBeneficiary.address,
-            parish: selectedBeneficiary.parish,
-            sharePercentage: 0 // Default share percentage
-          }
-        ];
-  
-        onUpdate(index, {
-          ...possession,
-          beneficiaries: updatedBeneficiaries
-        });
+    const formatPossessionForPDF = (possession) => {
+      const formatBeneficiaryDetails = (beneficiaries) => {
+        if (!beneficiaries || beneficiaries.length === 0) return '';
+        
+        return beneficiaries.map(b => {
+          const typeLabel = b.type === 'Grandchild' ? ` (${b.relationship})` : 
+                           b.type === 'Child' ? ' (Child)' : '';
+          
+          return `${b.fullName}${typeLabel} of ${b.address}${b.parish ? `, ${b.parish}` : ''} ` +
+                 `with a ${b.sharePercentage}% share`;
+        }).join(' AND ');
+      };
+    
+      const beneficiaryDetails = formatBeneficiaryDetails(possession.beneficiaries);
+      const noBeneficiariesText = 'with no specified beneficiaries';
+    
+      switch (possession.type) {
+        case 'Property':
+          return `Property- situate at ${possession.address}, in the parish of ${possession.parish} ` +
+                 `registered at Volume ${possession.volume} and Folio ${possession.folio} of the Register ` +
+                 `Book of Titles to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Shares and Stocks':
+          return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} ` +
+                 `in account numbered ${possession.accountNumber}, comprising ${possession.numberOfShares} shares ` +
+                 `with certificate numbers ${possession.certificateNumbers} to be shared between ` +
+                 `${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Insurance':
+          return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} ` +
+                 `located at ${possession.address}, ${possession.country}, being a ${possession.policyType} policy ` +
+                 `with sum insured of ${possession.sumInsured} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Bank Accounts':
+          return `Proceeds of ${possession.accountType || ''} account numbered ${possession.accountNumber}, ` +
+                 `held at ${possession.bank} located at ${possession.address}, ${possession.country}, ` +
+                 `in ${possession.currency || ''} currency to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Motor Vehicle':
+          return `${possession.color} ${possession.year} ${possession.make} ${possession.model} Motor vehicle ` +
+                 `bearing License plate number ${possession.licensePlate} and engine number ${possession.engineNumber} ` +
+                 `and chassis number ${possession.chassisNumber}, currently located at ${possession.parkingLocation || ''} ` +
+                 `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Unpaid Salary':
+          return `Unpaid salary and/or emoluments with my employer, ${possession.employer} ` +
+                 `located at ${possession.employerAddress}, Employee ID: ${possession.employmentId || ''}, ` +
+                 `covering the period ${possession.periodCovered || ''} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'NHT Contributions':
+          return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, ` +
+                 `Tax Number: ${possession.taxNumber}), with total contributions of ${possession.totalContributions || ''} ` +
+                 `up to ${possession.lastContributionDate || ''} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Jewellery':
+          return `Jewellery described as ${possession.description}, being a ${possession.itemType || ''} ` +
+                 `made of ${possession.material || ''}${possession.stones ? `, set with ${possession.stones}` : ''}, ` +
+                 `valued at ${possession.appraisalValue || ''}, currently located at ${possession.location || ''} ` +
+                 `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Furniture':
+          return `Furniture ${possession.description ? `described as ${possession.description}, ` : ''}` +
+                 `currently located at ${possession.location || ''}, ` +
+                 `valued at ${possession.estimatedValue || ''} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Paintings':
+          return `Painting titled "${possession.title || ''}" by artist ${possession.artist || ''}, ` +
+                 `created in ${possession.yearCreated || ''}, ${possession.medium || ''}, ` +
+                 `measuring ${possession.dimensions || ''}, currently located at ${possession.location || ''}, ` +
+                 `valued at ${possession.appraisalValue || ''} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+             
+    case 'Firearm':
+      return `Firearm bearing serial number ${possession.serialNumber} and firearm licence ` +
+             `number ${possession.licenseNumber}, being a ${possession.make} ${possession.model} ` +
+             `${possession.caliber} caliber ${possession.type}, stored at ${possession.storageLocation} ` +
+             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Digital Assets':
+          return `Digital assets described as ${possession.assetType || ''} held on ${possession.platform || ''}, ` +
+                 `account identifier ${possession.accountDetails || ''}, with estimated value of ${possession.estimatedValue || ''} ` +
+                 `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Intellectual Property':
+          return `Intellectual Property rights being ${possession.type || ''} registered under number ${possession.registrationNumber || ''} ` +
+                 `in ${possession.jurisdiction || ''}, valid until ${possession.expiryDate || ''}, ` +
+                 `with associated rights ${possession.rightsOwned || ''} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Business Interests':
+          return `Business interests in ${possession.companyName || ''} (Registration Number: ${possession.registrationNumber || ''}), ` +
+                 `being a ${possession.businessType || ''} with ${possession.ownershipPercentage || ''}% ownership, ` +
+                 `valued at ${possession.valuationDetails || ''} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        case 'Residual Estate':
+          return `Residual estate comprising ${possession.description || ''}, ` +
+                 `with estimated value of ${possession.estimatedValue || ''}, subject to ${possession.specialConditions || ''} ` +
+                 `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
+    
+        default:
+          return `${possession.type}: ${possession.description || 'No description provided'} ` +
+                 `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
       }
     };
+
+
+
   
-    // Function to remove a beneficiary
-    const handleRemoveBeneficiary = (beneficiaryIndex) => {
-      const updatedBeneficiaries = possession.beneficiaries.filter((_, idx) => idx !== beneficiaryIndex);
-      onUpdate(index, {
-        ...possession,
-        beneficiaries: updatedBeneficiaries
-      });
-    };
+
+
+
   
-    // Function to update beneficiary share percentage
-    const handleUpdateShare = (beneficiaryIndex, sharePercentage) => {
-      const updatedBeneficiaries = possession.beneficiaries.map((ben, idx) => {
-        if (idx === beneficiaryIndex) {
-          return { ...ben, sharePercentage: parseFloat(sharePercentage) || 0 };
-        }
-        return ben;
-      });
-  
-      onUpdate(index, {
-        ...possession,
-        beneficiaries: updatedBeneficiaries
-      });
-    };
-  
-    return (
-      <div className="space-y-6">
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Add Beneficiary
-          </label>
-          <div className="flex space-x-2">
-            <select
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              onChange={(e) => handleAddBeneficiary(e.target.value)}
-              value=""
-            >
-              <option value="">Select a beneficiary</option>
-              
-              {/* Children Group */}
-              {formData.children?.length > 0 && (
-                <optgroup label="Children">
-                  {formData.children.map((child, idx) => {
-                    const isSelected = possession.beneficiaries?.some(b => b.id === `child-${child.fullName}`);
-                    if (!isSelected) {
-                      return (
-                        <option key={`child-${idx}`} value={`child-${child.fullName}`}>
-                          {child.fullName} (Child)
-                        </option>
-                      );
-                    }
-                    return null;
-                  })}
-                </optgroup>
-              )}
-              
-              {/* Additional Beneficiaries Group */}
-              {formData.additionalBeneficiaries?.length > 0 && (
-                <optgroup label="Other Beneficiaries">
-                  {formData.additionalBeneficiaries.map((ben, idx) => {
-                    const isSelected = possession.beneficiaries?.some(b => b.id === `other-${ben.fullName}-${idx}`);
-                    if (!isSelected) {
-                      return (
-                        <option key={`ben-${idx}`} value={`other-${ben.fullName}-${idx}`}>
-                          {ben.fullName} ({ben.type})
-                        </option>
-                      );
-                    }
-                    return null;
-                  })}
-                </optgroup>
-              )}
-            </select>
-          </div>
-        </div>
-  
-        {/* Display selected beneficiaries */}
-        {possession.beneficiaries && possession.beneficiaries.length > 0 && (
-          <div className="mt-4">
-            <h4 className="font-semibold mb-4">Selected Beneficiaries:</h4>
-            <div className="space-y-4">
-              {possession.beneficiaries.map((beneficiary, idx) => (
-                <div key={beneficiary.id} className="p-4 bg-gray-50 rounded-lg relative border">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveBeneficiary(idx)}
-                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                  >
-                    ×
-                  </button>
-                  
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <span className="font-medium">Name:</span> {beneficiary.fullName}
-                    </div>
-                    <div>
-                      <span className="font-medium">Type:</span> {beneficiary.type}
-                    </div>
-                    <div>
-                      <span className="font-medium">Relationship:</span> {beneficiary.relationship}
-                    </div>
-                    <div>
-                      <span className="font-medium">Email:</span> {beneficiary.email}
-                    </div>
-                    <div>
-                      <span className="font-medium">Address:</span> {beneficiary.address}
-                    </div>
-                    {beneficiary.parish && (
-                      <div>
-                        <span className="font-medium">Parish:</span> {beneficiary.parish}
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">Share Percentage:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={beneficiary.sharePercentage || 0}
-                        onChange={(e) => handleUpdateShare(idx, e.target.value)}
-                        className="shadow appearance-none border rounded w-24 py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      />
-                      <span>%</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-  
-              {/* Show total share percentage */}
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                <div className="font-medium">
-                  Total Share: {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0)}%
-                </div>
-                {possession.beneficiaries.reduce((total, ben) => total + (ben.sharePercentage || 0), 0) !== 100 && (
-                  <div className="text-red-500 text-sm mt-1">
-                    Note: Total share percentage should equal 100%
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
   
   
   const renderAddPossessions = () => {
@@ -1231,112 +1543,7 @@ const handleBequestChange = (index, field, value) => {
 
 
 
-   
-const formatPossessionForPDF = (possession) => {
-  // Helper function to format beneficiary details
-  const formatBeneficiaryDetails = (beneficiaries) => {
-    if (!beneficiaries || beneficiaries.length === 0) return '';
-    
-    return beneficiaries.map(b => 
-      `${b.fullName}${b.type === 'Child' ? ' (Child)' : ''} ` +
-      `(${b.relationship}) of ${b.address}${b.parish ? `, ${b.parish}` : ''} ` +
-      `with a ${b.sharePercentage}% share`
-    ).join(' AND ');
-  };
 
-  // Get formatted beneficiary details
-  const beneficiaryDetails = formatBeneficiaryDetails(possession.beneficiaries);
-  
-  // Base text for when no beneficiaries are specified
-  const noBeneficiariesText = 'with no specified beneficiaries';
-  
-  // Format based on possession type
-  switch (possession.type) {
-    case 'Property':
-      return `Property- situate at ${possession.address}, in the parish of ${possession.parish} ` +
-             `registered at Volume ${possession.volume} and Folio ${possession.folio} of the Register ` +
-             `Book of Titles to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Shares and Stocks':
-      return `Shares in ${possession.company} held in ${possession.country} at ${possession.exchange} ` +
-             `in account numbered ${possession.accountNumber}, comprising ${possession.numberOfShares} shares ` +
-             `with certificate numbers ${possession.certificateNumbers} to be shared between ` +
-             `${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Insurance':
-      return `Proceeds of insurance policy numbered ${possession.policyNumber}, held at ${possession.company} ` +
-             `located at ${possession.address}, ${possession.country}, being a ${possession.policyType} policy ` +
-             `with sum insured of ${possession.sumInsured} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Bank Accounts':
-      return `Proceeds of ${possession.accountType} account numbered ${possession.accountNumber}, ` +
-             `held at ${possession.bank} located at ${possession.address}, ${possession.country}, ` +
-             `in ${possession.currency} currency to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Motor Vehicle':
-      return `${possession.color} ${possession.year} ${possession.make} ${possession.model} Motor vehicle ` +
-             `bearing License plate number ${possession.licensePlate} and engine number ${possession.engineNumber} ` +
-             `and chassis number ${possession.chassisNumber}, currently located at ${possession.parkingLocation} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Unpaid Salary':
-      return `Unpaid salary and/or emoluments with my employer, ${possession.employer} ` +
-             `located at ${possession.employerAddress}, Employee ID: ${possession.employmentId}, ` +
-             `covering the period ${possession.periodCovered} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'NHT Contributions':
-      return `Refund of National Housing Trust Contributions (NHT Number: ${possession.nhtNumber}, ` +
-             `Tax Number: ${possession.taxNumber}), with total contributions of ${possession.totalContributions} ` +
-             `up to ${possession.lastContributionDate} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Jewellery':
-      return `Jewellery described as ${possession.description}, being a ${possession.itemType} ` +
-             `made of ${possession.material}${possession.stones ? `, set with ${possession.stones}` : ''}, ` +
-             `valued at ${possession.appraisalValue}, currently located at ${possession.location} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Furniture':
-      return `Furniture ${possession.description ? `described as ${possession.description}, ` : ''}` +
-             `currently located at ${possession.location}, ` +
-             `valued at ${possession.estimatedValue} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Paintings':
-      return `Painting titled "${possession.title}" by artist ${possession.artist}, ` +
-             `created in ${possession.yearCreated}, ${possession.medium}, ` +
-             `measuring ${possession.dimensions}, currently located at ${possession.location}, ` +
-             `valued at ${possession.appraisalValue} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Firearm':
-      return `Firearm bearing serial number ${possession.serialNumber} and firearm licence ` +
-             `number ${possession.licenseNumber}, being a ${possession.make} ${possession.model} ` +
-             `${possession.caliber} caliber ${possession.type}, stored at ${possession.storageLocation} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Digital Assets':
-      return `Digital assets described as ${possession.assetType} held on ${possession.platform}, ` +
-             `account identifier ${possession.accountDetails}, with estimated value of ${possession.estimatedValue} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Intellectual Property':
-      return `Intellectual Property rights being ${possession.type} registered under number ${possession.registrationNumber} ` +
-             `in ${possession.jurisdiction}, valid until ${possession.expiryDate}, ` +
-             `with associated rights ${possession.rightsOwned} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Business Interests':
-      return `Business interests in ${possession.companyName} (Registration Number: ${possession.registrationNumber}), ` +
-             `being a ${possession.businessType} with ${possession.ownershipPercentage}% ownership, ` +
-             `valued at ${possession.valuationDetails} to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    case 'Residual Estate':
-      return `Residual estate comprising ${possession.description}, ` +
-             `with estimated value of ${possession.estimatedValue}, subject to ${possession.specialConditions} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-
-    default:
-      return `${possession.type}: ${possession.description || 'No description provided'} ` +
-             `to be shared between ${beneficiaryDetails || noBeneficiariesText}.`;
-  }
-};
 
 
   const handleDeletePossession = (index) => {
@@ -1774,29 +1981,34 @@ const formatPossessionDetails = (type, item) => {
         });
   
         page.drawText("(Please insert Testator's signature here)", {
-          x: 50,
-          y: 730,
+          x: 370,
+          y: 20,
           size: 10,
           font: timesRoman
         });
   
-        page.drawText("(Please insert Witness #1's signature here)", {
-          x: 250,
-          y: 730,
-          size: 10,
-          font: timesRoman
-        });
-  
-        page.drawText("(Please insert Witness #2's signature here)", {
-          x: 450,
-          y: 730,
-          size: 10,
-          font: timesRoman
-        });
+         
   
         return { page, yOffset: 700 };
       };
-  
+
+        
+      const calculateContentHeight = (content) => {
+        let height = 0;
+        if (content.possessions) {
+          height += content.possessions.length * 100; // Approximate height per possession
+        }
+        if (content.executors) {
+          height += content.executors.length * 50;
+        }
+        // Add other content calculations as needed
+        return height;
+      };
+
+
+      
+
+
       // Keep your existing writeText function exactly as is
       const writeText = (page, text, options = {}) => {
         const {
@@ -1859,7 +2071,7 @@ const formatPossessionDetails = (type, item) => {
           });
         }
       };
-  
+
       const checkNewPage = (currentYOffset, pageNum, neededSpace = 100) => {
         if (currentYOffset < neededSpace) {
           return addPage(pageNum);
@@ -1867,6 +2079,8 @@ const formatPossessionDetails = (type, item) => {
         return { page: currentPage, yOffset: currentYOffset };
       };
   
+  
+     
       // Updated formatPossessionForPDF function to handle multiple beneficiaries
       const formatPossessionForPDF = (possession) => {
         const formatBeneficiaryDetails = (beneficiaries) => {
@@ -2240,6 +2454,24 @@ const formatPossessionDetails = (type, item) => {
 
       localY -= 40;
 
+      writeText(currentPage, 'Email:', {
+        y: localY,
+        x: column.x,
+        font: timesBold
+      });
+    
+      drawDottedLine(currentPage, column.x + 80, localY, 200);
+      
+      if (witness.email) {
+        writeText(currentPage, witness.email, {
+          y: localY,
+          x: column.x + 80
+        });
+      }
+    
+      localY -= 40
+      
+     
       // Address
       writeText(currentPage, 'Address:', {
         y: localY,
@@ -2280,7 +2512,7 @@ const formatPossessionDetails = (type, item) => {
     // ... rest of your existing witness section code ...
 
     // Final Declaration (keep exactly as is)
-    yOffset -= 100;
+    yOffset -= 165;
     yOffset = writeText(currentPage, 'executed this Last will and testament willingly and in the presence of the following witnesses, who are present at the same time and who have signed as witnesses in my presence:', {
       y: yOffset,
       lineSpacing: 1.5
@@ -2485,6 +2717,7 @@ const addBequest = () => {
   }));
 };
 
+
 const removeBequest = (index) => {
   setFormData(prev => ({
     ...prev,
@@ -2495,47 +2728,7 @@ const removeBequest = (index) => {
 
 
 
-const handleInputChange = (e, section, field, index = null) => {
-  const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-  
-  setFormData(prev => {
-    const newData = { ...prev };
-    
-    if (section && index !== null) {
-      // Handle array updates
-      if (!Array.isArray(newData[section])) {
-        newData[section] = [];
-      }
-      
-      if (!newData[section][index]) {
-        newData[section][index] = {};
-      }
-      
-      newData[section] = [
-        ...newData[section].slice(0, index),
-        {
-          ...newData[section][index],
-          [field]: value
-        },
-        ...newData[section].slice(index + 1)
-      ];
-    } else if (section) {
-      // Handle nested object updates
-      if (!newData[section]) {
-        newData[section] = {};
-      }
-      newData[section] = {
-        ...newData[section],
-        [field]: value
-      };
-    } else {
-      // Handle direct updates
-      newData[field] = value;
-    }
-    
-    return newData;
-  });
-};
+
 
 
   const renderStep = () => {
@@ -2629,73 +2822,73 @@ const handleInputChange = (e, section, field, index = null) => {
           </section>
         );
         case 3:
-  return (
-    <section>
-      <h2 className="text-2xl font-semibold mb-4">Family Status</h2>
-      <div className="mb-4">
-        <label className="block text-gray-700 text-sm font-bold mb-2">Marital Status</label>
-        <select
-          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          value={formData.maritalStatus || ''}
-          onChange={(e) => handleInputChange(e, null, 'maritalStatus')}
-        >
-          <option value="">Select...</option>
-          <option value="single">Single</option>
-          <option value="married">Married</option>
-          <option value="divorced">Divorced</option>
-          <option value="widowed">Widowed</option>
-          <option value="separated">Separated</option>
-          <option value="domesticPartnership">Domestic Partnership</option>
-        </select>
-      </div>
-
-      <div className="mb-4">
-        <label className="block text-gray-700 text-sm font-bold mb-2">Living Children</label>
-        <div className="flex space-x-4">
-          {['Yes', 'No'].map((option) => (
-            <label key={option} className="inline-flex items-center">
-              <input
-                type="radio"
-                className="form-radio"
-                name="livingChildren"
-                value={option.toLowerCase()}
-                checked={formData.livingChildren === option.toLowerCase()}
-                onChange={(e) => handleInputChange(e, null, 'livingChildren')}
+          return (
+            <section>
+              <h2 className="text-2xl font-semibold mb-4">Family Status</h2>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Marital Status</label>
+                <select
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={formData.maritalStatus || ''}
+                  onChange={(e) => handleInputChange(e, null, 'maritalStatus')}
+                >
+                  <option value="">Select...</option>
+                  <option value="single">Single</option>
+                  <option value="married">Married</option>
+                  <option value="divorced">Divorced</option>
+                  <option value="widowed">Widowed</option>
+                  <option value="separated">Separated</option>
+                  <option value="domesticPartnership">Domestic Partnership</option>
+                </select>
+              </div>
+        
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Living Children</label>
+                <div className="flex space-x-4">
+                  {['Yes', 'No'].map((option) => (
+                    <label key={option} className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        className="form-radio"
+                        name="livingChildren"
+                        value={option.toLowerCase()}
+                        checked={formData.livingChildren === option.toLowerCase()}
+                        onChange={(e) => handleInputChange(e, null, 'livingChildren')}
+                      />
+                      <span className="ml-2">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+        
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Living Grandchildren</label>
+                <div className="flex space-x-4">
+                  {['Yes', 'No'].map((option) => (
+                    <label key={option} className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        className="form-radio"
+                        name="livingGrandchildren"
+                        value={option.toLowerCase()}
+                        checked={formData.livingGrandchildren === option.toLowerCase()}
+                        onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
+                      />
+                      <span className="ml-2">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+        
+              {/* Add the GrandchildrenSection component */}
+              <GrandchildrenSection
+                formData={formData}
+                handleInputChange={handleInputChange}
+                removeGrandchild={removeGrandchild}
+                addGrandchild={addGrandchild}
               />
-              <span className="ml-2">{option}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="mb-4">
-        <label className="block text-gray-700 text-sm font-bold mb-2">Living Grandchildren</label>
-        <div className="flex space-x-4">
-          {['Yes', 'No'].map((option) => (
-            <label key={option} className="inline-flex items-center">
-              <input
-                type="radio"
-                className="form-radio"
-                name="livingGrandchildren"
-                value={option.toLowerCase()}
-                checked={formData.livingGrandchildren === option.toLowerCase()}
-                onChange={(e) => handleInputChange(e, null, 'livingGrandchildren')}
-              />
-              <span className="ml-2">{option}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Add the GrandchildrenSection component */}
-      <GrandchildrenSection
-        formData={formData}
-        handleInputChange={handleInputChange}
-        removeGrandchild={removeGrandchild}
-        addGrandchild={addGrandchild}
-      />
-    </section>
-  );
+            </section>
+          );
       case 4:
         return (
             <section>
@@ -3281,6 +3474,7 @@ const handleInputChange = (e, section, field, index = null) => {
             <h4 className="text-lg font-semibold mb-2">Witness {index + 1}</h4>
             <div className="grid grid-cols-1 gap-4">
               {renderInput('witnesses', 'name', 'Full Name', index)}
+              {renderInput('witnesses', 'email', 'Email Address', index)}
               {renderInput('witnesses', 'address', 'Address', index)}
               {renderInput('witnesses', 'parish', 'Parish', index)}  {/* Added parish field */}
               {renderInput('witnesses', 'occupation', 'Occupation', index)}
@@ -3366,6 +3560,7 @@ const handleInputChange = (e, section, field, index = null) => {
           case 15:
           case 16:
           
+          
         
             return null;
 
@@ -3373,25 +3568,30 @@ const handleInputChange = (e, section, field, index = null) => {
           
 
             case 17:
-      return (
-        <section className="distribute-possessions">
-          <h2 className="text-2xl font-semibold mb-4">Distribute Your Possessions</h2>
-          <p className="mb-4">You are now ready to specify how you wish your possessions to be distributed.</p>
-          <h3 className="text-xl font-semibold mb-2">Remember:</h3>
-          <ul className="list-disc list-inside mb-4">
-            <li>To reduce the likelihood of your Will being contested in a court of law, be as complete and unambiguous in your answers as possible.</li>
-            <li>While answering the questions, if you need general assistance on the section, just read the Common Questions which appear on every page. If you don't see the questions, simply click on the big ? near the top of the page.</li>
-            <li>Specific help for parts of a page that may be unclear is available by tapping (or moving your mouse over) the small ? symbol which appears next to some questions.</li>
-            <li>You can come back at any time to revise your answers and keep your Will up to date, free of charge.</li>
-          </ul>
-          <p className="mb-4">Click on the "NEXT" button below to continue.</p>
-        </section>
-      );
+              return (
+                <SaveDetailsSection 
+                  handleSave={(type) => {
+                    if (type === 'local') {
+                      localStorage.setItem('willFormData', JSON.stringify(formData));
+                      alert('Progress saved successfully!');
+                    } else if (type === 'download') {
+                      const dataStr = JSON.stringify(formData);
+                      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = 'will_details_backup.json';
+                      link.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  }} 
+                />
+              );
       
       case 18:
         return (
           <section className="space-y-6">
-      <h2 className="text-2xl font-semibold mb-4">Make Bequests</h2>
+      <h2 className="text-2xl font-semibold mb-4">Make Bequests / You can skip this part you have already distribute your possesions</h2>
       <p className="mb-4">
         I would like to leave the following specific items to specific beneficiaries. 
         Any of my possessions not specifically described here will go to my multiple main beneficiaries.
@@ -3542,6 +3742,110 @@ const handleInputChange = (e, section, field, index = null) => {
       </button>
     </section>
         );
+          
+        case 19:
+          return (
+            <section className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+              <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">Review Your Will Details</h2>
+        
+              {/* Save Progress Button */}
+              <div className="mb-8 text-center">
+                <button
+                  onClick={handleSave}
+                  className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transform transition hover:scale-105 flex items-center justify-center mx-auto"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h-2v5.586l-1.293-1.293z" />
+                  </svg>
+                  Save Progress
+                </button>
+              </div>
+        
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Personal Information */}
+                <div className="bg-gray-50 p-6 rounded-lg shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-blue-600">Personal Information</h3>
+                  <dl className="space-y-2">
+                    <dt className="font-medium">Full Name</dt>
+                    <dd className="ml-4 text-gray-600">{formData.prefix} {formData.testatorName} {formData.suffix}</dd>
+                    <dt className="font-medium">Occupation</dt>
+                    <dd className="ml-4 text-gray-600">{formData.occupation}</dd>
+                    <dt className="font-medium">Address</dt>
+                    <dd className="ml-4 text-gray-600">{formData.address}, {formData.parish}</dd>
+                  </dl>
+                </div>
+        
+                {/* Family Status */}
+                <div className="bg-gray-50 p-6 rounded-lg shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-blue-600">Family Status</h3>
+                  <dl className="space-y-2">
+                    <dt className="font-medium">Marital Status</dt>
+                    <dd className="ml-4 text-gray-600">{formData.maritalStatus}</dd>
+                    <dt className="font-medium">Living Children</dt>
+                    <dd className="ml-4 text-gray-600">{formData.livingChildren === 'yes' ? 'Yes' : 'No'}</dd>
+                    <dt className="font-medium">Living Grandchildren</dt>
+                    <dd className="ml-4 text-gray-600">{formData.livingGrandchildren === 'yes' ? 'Yes' : 'No'}</dd>
+                  </dl>
+                </div>
+        
+                {/* Executors */}
+                <div className="bg-gray-50 p-6 rounded-lg shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-blue-600">Executors</h3>
+                  {formData.executors.map((executor, index) => (
+                    <div key={`executor-${index}`} className="mb-4">
+                      <h4 className="font-medium">Executor {index + 1}</h4>
+                      <dl className="ml-4 space-y-1">
+                        <dt className="text-sm">Name</dt>
+                        <dd className="text-gray-600">{executor.name}</dd>
+                        <dt className="text-sm">Relationship</dt>
+                        <dd className="text-gray-600">{executor.relationship}</dd>
+                        <dt className="text-sm">Email</dt>
+                        <dd className="text-gray-600">{executor.email}</dd>
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+        
+                {/* Witnesses */}
+                <div className="bg-gray-50 p-6 rounded-lg shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-blue-600">Witnesses</h3>
+                  {formData.witnesses.map((witness, index) => (
+                    <div key={`witness-${index}`} className="mb-4">
+                      <h4 className="font-medium">Witness {index + 1}</h4>
+                      <dl className="ml-4 space-y-1">
+                        <dt className="text-sm">Name</dt>
+                        <dd className="text-gray-600">{witness.name}</dd>
+                        <dt className="text-sm">Email</dt>
+                        <dd className="text-gray-600">{witness.email}</dd>
+                        <dt className="text-sm">Occupation</dt>
+                        <dd className="text-gray-600">{witness.occupation}</dd>
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+        
+                {/* Possessions Summary */}
+                <div className="bg-gray-50 p-6 rounded-lg shadow md:col-span-2">
+                  <h3 className="text-xl font-semibold mb-4 text-blue-600">Possessions Summary</h3>
+                  <div className="space-y-4">
+                    {formData.possessions.map((possession, index) => (
+                      <div key={`possession-${index}`} className="border-b pb-4">
+                        <h4 className="font-medium">{possession.type}</h4>
+                        <div className="ml-4 text-sm text-gray-600">
+                          {possession.beneficiaries && possession.beneficiaries.map((ben, idx) => (
+                            <div key={`ben-${idx}`} className="mt-2">
+                              <span className="font-medium">Beneficiary {idx + 1}:</span> {ben.fullName} ({ben.sharePercentage}%)
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
   
         case 20:
             return(
