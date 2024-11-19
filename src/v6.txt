@@ -2687,3 +2687,263 @@ const handleInputChange = (e, section, field, index = null) => {
 };
 
 export default WillGenerator;
+
+
+
+
+
+import React, { useEffect, useState } from 'react';
+
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+import WillGenerator from './WillGenerator';
+
+import Signup from './Signup';
+
+import Login from './Login';
+
+import SubscriptionChoice from './SubscriptionChoice';
+
+import Dashboard from './Dashboard';
+
+import Navbar from './Navbar';
+
+import PrivateRoute from './PrivateRoute';
+
+import { supabase } from './supabaseClient';
+
+const LoadingSpinner = () => (
+
+<div className="fixed inset-0 bg-white flex items-center justify-center">
+
+<div className="flex flex-col items-center">
+
+<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+
+<p className="mt-4 text-gray-600">Loading...</p>
+
+</div>
+
+</div>
+
+);
+
+const Layout = ({ children }) => {
+
+const [userEmail, setUserEmail] = useState(null);
+
+const [subscription, setSubscription] = useState(null);
+
+useEffect(() => {
+
+const getUserDetails = async () => {
+
+const { data: { user } } = await supabase.auth.getUser();
+
+if (user) {
+
+setUserEmail(user.email);
+
+const { data: subscriptionData } = await supabase
+
+ .from('user_subscriptions')
+
+ .select('subscription_type')
+
+ .eq('user_id', user.id)
+
+ .single();
+
+if (subscriptionData) {
+
+setSubscription(subscriptionData.subscription_type);
+
+ }
+
+ }
+
+ };
+
+getUserDetails();
+
+ }, []);
+
+return (
+
+<div>
+
+{userEmail && <Navbar userEmail={userEmail} subscription={subscription} />}
+
+<main className="pt-4">
+
+{children}
+
+</main>
+
+</div>
+
+ );
+
+};
+
+const App = () => {
+
+const [loading, setLoading] = useState(true);
+
+const [user, setUser] = useState(null);
+
+useEffect(() => {
+
+const checkUser = async () => {
+
+try {
+
+const { data: { user } } = await supabase.auth.getUser();
+
+setUser(user);
+
+ } catch (error) {
+
+console.error('Error checking user:', error);
+
+ } finally {
+
+setLoading(false);
+
+ }
+
+ };
+
+checkUser();
+
+const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+
+setUser(session?.user || null);
+
+setLoading(false);
+
+ });
+
+return () => subscription.unsubscribe();
+
+ }, []);
+
+if (loading) {
+
+return <LoadingSpinner />;
+
+ }
+
+return (
+
+<Router>
+
+<Layout>
+
+<Routes>
+
+{/* Public routes */}
+
+<Route
+
+path="/login"
+
+element={user ? <Navigate to="/subscription" /> : <Login />}
+
+/>
+
+<Route
+
+path="/signup"
+
+element={user ? <Navigate to="/subscription" /> : <Signup />}
+
+/>
+
+{/* Protected routes */}
+
+<Route
+
+path="/subscription"
+
+element={
+
+<PrivateRoute>
+
+<SubscriptionChoice />
+
+</PrivateRoute>
+
+}
+
+/>
+
+<Route
+
+path="/dashboard"
+
+element={
+
+<PrivateRoute requiredSubscription>
+
+<Dashboard />
+
+</PrivateRoute>
+
+}
+
+/>
+
+<Route
+
+path="/form"
+
+element={
+
+<PrivateRoute requiredSubscription>
+
+<WillGenerator />
+
+</PrivateRoute>
+
+}
+
+/>
+
+{/* Default redirect */}
+
+<Route
+
+path="*"
+
+element={
+
+loading ? (
+
+<LoadingSpinner />
+
+ ) : user ? (
+
+<Navigate to="/subscription" />
+
+ ) : (
+
+<Navigate to="/login" />
+
+ )
+
+}
+
+/>
+
+</Routes>
+
+</Layout>
+
+</Router>
+
+ );
+
+};
+
+export default App;

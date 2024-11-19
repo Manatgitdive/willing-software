@@ -555,3 +555,832 @@ const WillGenerator = () => {
 };
 
 export default WillGenerator;
+
+
+
+
+const handleGeneratePDF = async () => {
+  try {
+    const pdfBytes = await generatePDF(formData);
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Error generating PDF. Please try again.');
+  }
+}
+
+
+
+
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    setSubmitting(true); // Add this state if not already present
+    
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // First save the will to get the will_id
+    const { data: willData, error: willError } = await supabase
+      .from('wills')
+      .insert([
+        {
+          user_id: user.id,
+          testator_name: formData.testatorName,
+          prefix: formData.prefix,
+          suffix: formData.suffix,
+          occupation: formData.occupation,
+          address: formData.address,
+          parish: formData.parish,
+          gender: formData.gender,
+          marital_status: formData.maritalStatus,
+          content: formData,
+          created_at: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
+
+    if (willError) throw willError;
+
+    // Save spouse if exists
+    if (formData.spouse?.fullName) {
+      const { error: spouseError } = await supabase
+        .from('spouses')
+        .insert([{
+          will_id: willData.id,
+          full_name: formData.spouse.fullName,
+          relation: formData.spouse.relation,
+          occupation: formData.spouse.occupation
+        }]);
+      if (spouseError) throw spouseError;
+    }
+
+    // Save children
+    if (formData.children?.length > 0) {
+      const { error: childrenError } = await supabase
+        .from('children')
+        .insert(formData.children.map(child => ({
+          will_id: willData.id,
+          full_name: child.fullName,
+          relationship: child.relationship,
+          date_of_birth: child.dateOfBirth,
+          email: child.email,
+          occupation: child.occupation,
+          address: child.address,
+          parish: child.parish
+        })));
+      if (childrenError) throw childrenError;
+    }
+
+    // Save grandchildren
+    if (formData.grandchildren?.length > 0) {
+      const { error: grandchildrenError } = await supabase
+        .from('grandchildren')
+        .insert(formData.grandchildren.map(grandchild => ({
+          will_id: willData.id,
+          full_name: grandchild.fullName,
+          relationship: grandchild.relationship,
+          date_of_birth: grandchild.dateOfBirth,
+          email: grandchild.email,
+          occupation: grandchild.occupation,
+          address: grandchild.address,
+          parish: grandchild.parish
+        })));
+      if (grandchildrenError) throw grandchildrenError;
+    }
+
+    // Save deceased family members
+    if (formData.deceasedFamilyMembers?.length > 0) {
+      const { error: deceasedError } = await supabase
+        .from('deceased_family_members')
+        .insert(formData.deceasedFamilyMembers.map(member => ({
+          will_id: willData.id,
+          full_name: member.fullName,
+          relationship: member.relationship
+        })));
+      if (deceasedError) throw deceasedError;
+    }
+
+    // Save additional beneficiaries
+    if (formData.additionalBeneficiaries?.length > 0) {
+      const { error: beneficiariesError } = await supabase
+        .from('additional_beneficiaries')
+        .insert(formData.additionalBeneficiaries.map(ben => ({
+          will_id: willData.id,
+          type: ben.type,
+          full_name: ben.fullName,
+          relationship: ben.relationship,
+          email: ben.email,
+          address: ben.address,
+          parish: ben.parish
+        })));
+      if (beneficiariesError) throw beneficiariesError;
+    }
+
+    // Save executors
+    if (formData.executors?.length > 0) {
+      const { error: executorsError } = await supabase
+        .from('executors')
+        .insert(formData.executors.map(exec => ({
+          will_id: willData.id,
+          full_name: exec.name,
+          relationship: exec.relationship,
+          email: exec.email,
+          occupation: exec.occupation,
+          address: exec.address,
+          parish: exec.parish
+        })));
+      if (executorsError) throw executorsError;
+    }
+
+    // Save witnesses
+    if (formData.witnesses?.length > 0) {
+      const { error: witnessesError } = await supabase
+        .from('witnesses')
+        .insert(formData.witnesses.map(witness => ({
+          will_id: willData.id,
+          full_name: witness.name,
+          email: witness.email,
+          address: witness.address,
+          parish: witness.parish,
+          occupation: witness.occupation
+        })));
+      if (witnessesError) throw witnessesError;
+    }
+
+    // Save possessions and their beneficiaries
+    if (formData.possessions?.length > 0) {
+      for (const possession of formData.possessions) {
+        // Save possession
+        const { data: possessionData, error: possessionError } = await supabase
+          .from('possessions')
+          .insert([{
+            will_id: willData.id,
+            type: possession.type,
+            ...possession
+          }])
+          .select()
+          .single();
+
+        if (possessionError) throw possessionError;
+
+        // Save possession beneficiaries
+        if (possession.beneficiaries?.length > 0) {
+          const { error: benError } = await supabase
+            .from('possession_beneficiaries')
+            .insert(possession.beneficiaries.map(ben => ({
+              possession_id: possessionData.id,
+              beneficiary_type: ben.type,
+              beneficiary_id: ben.id,
+              share_percentage: ben.sharePercentage
+            })));
+          if (benError) throw benError;
+        }
+      }
+    }
+
+    // Save funeral arrangements
+    if (formData.funeralDetails || formData.clothingDetails || formData.remainsDetails) {
+      const { error: funeralError } = await supabase
+        .from('funeral_arrangements')
+        .insert([{
+          will_id: willData.id,
+          funeral_details: formData.funeralDetails,
+          clothing_details: formData.clothingDetails,
+          remains_details: formData.remainsDetails,
+          songs: formData.songs
+        }]);
+      if (funeralError) throw funeralError;
+    }
+
+    // Generate and download PDF
+    await handleGeneratePDF();
+
+    // Check subscription type and redirect accordingly
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('subscription_type')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .single();
+
+    if (subscription?.subscription_type === 'yearly') {
+      navigate('/dashboard');
+    } else {
+      alert('Will has been generated and saved successfully!');
+    }
+
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error saving will. Please try again.');
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+
+
+//update the new generate pdf code // 
+
+const handleSubmit = async (formData) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+
+    // Save will data
+    const { data: willData, error: willError } = await supabase
+      .from('wills')
+      .insert([
+        {
+          user_id: user.id,
+          testator_name: formData.testatorName,
+          prefix: formData.prefix,
+          suffix: formData.suffix,
+          occupation: formData.occupation,
+          address: formData.address,
+          parish: formData.parish,
+          content: formData
+        }
+      ])
+      .select()
+      .single();
+
+    if (willError) throw willError;
+
+    // Generate PDF
+    await handleGeneratePDF(formData);
+
+    // Redirect to dashboard
+    navigate('/dashboard');
+  } catch (error) {
+    console.error('Error saving will:', error);
+    alert('Failed to save will. Please try again.');
+  }
+};
+
+// Updated handleGeneratePDF function
+const handleGeneratePDF = async () => {
+  try {
+    // Your existing PDF generation code stays the same
+    const pdfBytes = await generatePDF(formData);
+    
+    // Create and trigger download
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw new Error('Error generating PDF. Please try again.');
+  }
+};
+    
+
+
+
+
+
+
+
+
+
+// previous handle submit request // 
+
+const handleSubmit = async (formData) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+
+    // Save will data
+    const { data: willData, error: willError } = await supabase
+      .from('wills')
+      .insert([
+        {
+          user_id: user.id,
+          testator_name: formData.testatorName,
+          prefix: formData.prefix,
+          suffix: formData.suffix,
+          occupation: formData.occupation,
+          address: formData.address,
+          parish: formData.parish,
+          content: formData
+        }
+      ])
+      .select()
+      .single();
+
+    if (willError) throw willError;
+
+    // Generate PDF
+    await handleGeneratePDF(formData);
+
+    // Redirect to dashboard
+    navigate('/dashboard');
+  } catch (error) {
+    console.error('Error saving will:', error);
+    alert('Failed to save will. Please try again.');
+  }
+};
+
+// Updated handleGeneratePDF function
+const handleGeneratePDF = async () => {
+  try {
+    // Your existing PDF generation code stays the same
+    const pdfBytes = await generatePDF(formData);
+    
+    // Create and trigger download
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw new Error('Error generating PDF. Please try again.');
+  }
+};
+    
+
+     
+
+
+
+
+
+
+
+
+
+
+
+
+     const handleSubmit = async (formData) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+  
+      // Save will data
+      const { data: willData, error: willError } = await supabase
+        .from('wills')
+        .insert([
+          {
+            user_id: user.id,
+            testator_name: formData.testatorName,
+            prefix: formData.prefix,
+            suffix: formData.suffix,
+            occupation: formData.occupation,
+            address: formData.address,
+            parish: formData.parish,
+            content: formData
+          }
+        ])
+        .select()
+        .single();
+  
+      if (willError) throw willError;
+  
+      // Generate PDF
+      await handleGeneratePDF(formData);
+  
+      // Redirect to dashboard
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Error saving will:', error);
+      alert('Failed to save will. Please try again.');
+    }
+  };
+  
+  // Updated handleGeneratePDF function
+  const handleGeneratePDF = async () => {
+    try {
+      // Your existing PDF generation code stays the same
+      const pdfBytes = await generatePDF(formData);
+      
+      // Create and trigger download
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+  
+      return true;
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      throw new Error('Error generating PDF. Please try again.');
+    }
+  };
+      
+
+
+
+
+
+
+
+       const handleSubmit = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // For subscription users
+      if (isSubscriptionUser && user) {
+        // Handle update if editing
+        if (location.state?.isEditing) {
+          const { error: updateError } = await supabase
+            .from('wills')
+            .update({
+              testator_name: formData.testatorName,
+              prefix: formData.prefix,
+              suffix: formData.suffix,
+              occupation: formData.occupation,
+              address: formData.address,
+              parish: formData.parish,
+              content: formData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', location.state.willId);
+
+          if (updateError) throw updateError;
+          
+          // Generate PDF but don't trigger download
+          await handleGeneratePDF(formData, false);
+          
+          alert('Will updated successfully');
+          navigate('/dashboard');
+        } 
+        // Handle new will creation
+        else {
+          const { data: willData, error: insertError } = await supabase
+            .from('wills')
+            .insert([{
+              user_id: user.id,
+              testator_name: formData.testatorName,
+              prefix: formData.prefix,
+              suffix: formData.suffix,
+              occupation: formData.occupation,
+              address: formData.address,
+              parish: formData.parish,
+              content: formData,
+              created_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          
+          // Generate PDF but don't trigger download
+          await handleGeneratePDF(formData, false);
+          
+          alert('Will created successfully');
+          navigate('/dashboard');
+        }
+      }
+      // For one-time users
+      else {
+        // Generate PDF and trigger download
+        await handleGeneratePDF(formData, true);
+        alert('Will generated successfully');
+        // Optionally redirect to a thank you page
+        navigate('/thank-you');
+      }
+    } catch (error) {
+      console.error('Error processing will:', error);
+      alert('An error occurred. Please try again.');
+    }
+  };
+
+  // Updated handleGeneratePDF function
+  const handleGeneratePDF = async (formData, downloadImmediately = true) => {
+    try {
+      // Your existing PDF generation code
+      const pdfBytes = await generatePDF(formData);
+      
+      // Create blob
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      
+      // For immediate download (one-time users)
+      if (downloadImmediately) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+      // For subscription users, store PDF in Supabase storage
+      else if (isSubscriptionUser) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const fileName = `${Date.now()}-${formData.testatorName}.pdf`;
+          const filePath = `pdfs/${user.id}/${fileName}`;
+          
+          await supabase.storage
+            .from('documents')
+            .upload(filePath, blob);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error handling PDF:', error);
+      throw new Error('Error processing PDF. Please try again.');
+    }
+  };
+  
+
+
+
+// case 20 //
+
+
+case 20:
+            return(
+              <section className="space-y-6">
+              <h2 className="text-2xl font-semibold mb-4">Generate Will</h2>
+              <p>Review your information and click the button below to generate your will.</p>
+              <button
+                onClick={handleGeneratePDF}
+                className="bg-green-500 text-white px-6 py-3 rounded hover:bg-green-600"
+              >
+                Generate Will PDF
+              </button>
+            </section>
+            );
+
+
+
+
+       // handleSubmit code //
+  
+       const handleSubmit = async (formData) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+  
+      // Save will data
+      const { data: willData, error: willError } = await supabase
+        .from('wills')
+        .insert([{
+          user_id: user.id,
+          testator_name: formData.testatorName,
+          prefix: formData.prefix,
+          suffix: formData.suffix,
+          occupation: formData.occupation,
+          address: formData.address,
+          parish: formData.parish,
+          content: formData,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+  
+      if (willError) throw willError;
+  
+      // Navigate back to dashboard with success message
+      navigate('/dashboard', { 
+        state: { 
+          message: 'Will created successfully!',
+          willId: willData.id 
+        }
+      });
+    } catch (error) {
+      console.error('Error saving will:', error);
+      alert('Failed to save will. Please try again.');
+    }
+  };
+
+
+
+
+
+
+  const handlePreviousStep = () => {
+    let prevStep = currentStep - 1;
+  
+    // Handle guardian section navigation
+    if (currentStep === 9) {
+      const minorChildren = formData.children.filter(child => 
+        child.dateOfBirth && calculateAge(child.dateOfBirth) < 18
+      );
+      
+      // Skip guardian details if no minor children or livingChildren is 'no'
+      if ((minorChildren.length === 0 && formData.livingGrandchildren !== 'yes') || 
+          formData.livingChildren === 'no') {
+        prevStep = 7;
+      }
+    }
+    
+    // Handle possession section navigation
+    else if (currentStep === 17) {
+      // Go back to Add Possession step
+      prevStep = 11;
+    }
+    // Skip possession-specific steps when going back
+    else if ([12, 13, 14, 15, 16].includes(currentStep)) {
+      prevStep = 11;
+    }
+  
+    // Ensure we don't go below step 1
+    setCurrentStep(Math.max(1, prevStep));
+  };
+
+
+
+
+
+
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Last Will and Testament Generator</h1>
+      
+      {/* Progress indicator */}
+      <div className="mb-8">
+        <div className="flex justify-between">
+          {Array.from({ length: totalSteps }, (_, i) => {
+            const step = i + 1;
+            // Don't show skipped steps
+            if (![12, 13, 14, 15, 16].includes(step)) {
+              return (
+                <div
+                  key={step}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    step === currentStep
+                      ? 'bg-blue-500 text-white'
+                      : step < currentStep
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300'
+                  }`}
+                >
+                  {step}
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </div>
+
+      <form onSubmit={(e) => e.preventDefault()}>
+        {renderStep()}
+        
+        <div className="flex justify-between mt-8">
+          <button
+            type="button"
+            onClick={handlePreviousStep}
+            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+            disabled={currentStep === 1}
+          >
+            Previous
+          </button>
+          
+          <button
+            type="button"
+            onClick={navigateForward}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Next
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   case 20:
+  return (
+    <section className="space-y-6">
+      <h2 className="text-2xl font-semibold mb-4">Generate Will</h2>
+      <p className="text-gray-600">Review your information and click the button below to generate your will.</p>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          <strong className="font-bold">Error! </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
+      <button
+        onClick={handleSubmit}
+        disabled={loading}
+        className={`bg-green-500 text-white px-6 py-3 rounded hover:bg-green-600 
+          transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        {loading ? 'Generating...' : 'Generate Will PDF'}
+      </button>
+    </section>
+  );
+          
+
+         
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Last Will and Testament Generator</h1>
+      
+      {/* Progress indicator */}
+      <div className="mb-8">
+        <div className="flex justify-between">
+          {Array.from({ length: totalSteps }, (_, i) => {
+            const step = i + 1;
+            // Don't show skipped steps
+            if (![12, 13, 14, 15, 16].includes(step)) {
+              return (
+                <div
+                  key={step}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    step === currentStep
+                      ? 'bg-blue-500 text-white'
+                      : step < currentStep
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300'
+                  }`}
+                >
+                  {step}
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </div>
+
+      <form onSubmit={(e) => e.preventDefault()}>
+        {renderStep()}
+        
+        <div className="flex justify-between mt-8">
+          <button
+            type="button"
+            onClick={handlePreviousStep}
+            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+            disabled={currentStep === 1}
+          >
+            Previous
+          </button>
+          
+          <button
+            type="button"
+            onClick={navigateForward}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Next
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default WillGenerator;

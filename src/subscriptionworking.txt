@@ -1,0 +1,172 @@
+// SubscriptionChoice.jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from './supabaseClient';
+
+const SubscriptionChoice = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    checkExistingSubscription();
+  }, []);
+
+  const checkExistingSubscription = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (subscription) {
+        // Redirect based on existing subscription
+        navigate(subscription.subscription_type === 'yearly' ? '/dashboard' : '/form');
+      }
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleSubscriptionChoice = async (type) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+
+      const { error: subscriptionError } = await supabase
+        .from('user_subscriptions')
+        .insert([
+          {
+            user_id: user.id,
+            subscription_type: type,
+            created_at: new Date().toISOString(),
+            expires_at: type === 'yearly' 
+              ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+              : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          }
+        ]);
+
+      if (subscriptionError) throw subscriptionError;
+
+      // Navigate based on subscription type
+      navigate(type === 'yearly' ? '/dashboard' : '/form', { replace: true });
+
+    } catch (err) {
+      console.error('Error:', err);
+      setError('Error selecting subscription. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-3xl font-bold text-center mb-12">Choose Your Subscription</h1>
+        
+        {error && (
+          <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* One-time Plan */}
+          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+            <h2 className="text-2xl font-semibold mb-4">One-Time Use</h2>
+            <p className="text-gray-600 mb-4">Create a single will with all essential features</p>
+            <ul className="mb-6 space-y-2">
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Create one complete will
+              </li>
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                PDF download
+              </li>
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Basic support
+              </li>
+            </ul>
+            <button
+              onClick={() => handleSubscriptionChoice('onetime')}
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Processing...' : 'Select One-Time ($99)'}
+            </button>
+          </div>
+
+          {/* Yearly Plan */}
+          <div className="relative bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow border-2 border-blue-500">
+            <div className="absolute -top-2 -right-2 bg-blue-500 text-white px-3 py-1 text-sm rounded">
+              RECOMMENDED
+            </div>
+            <h2 className="text-2xl font-semibold mb-4">Yearly Subscription</h2>
+            <p className="text-gray-600 mb-4">Full access to all features for one year</p>
+            <ul className="mb-6 space-y-2">
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Create unlimited wills
+              </li>
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Update and edit anytime
+              </li>
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Priority support
+              </li>
+            </ul>
+            <button
+              onClick={() => handleSubscriptionChoice('yearly')}
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Processing...' : 'Select Yearly ($199)'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SubscriptionChoice;

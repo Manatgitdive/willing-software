@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { checkSubscription } from './subscriptionUtils';
+
 
 const WillGenerator = () => {
   const totalSteps = 20; // Add this constant for step tracking
@@ -129,6 +131,111 @@ const WillGenerator = () => {
     signatureDate: ''
   });
 
+     
+ 
+
+
+    
+
+
+  const handleSubscriptionSelect = async (type) => {
+    try {
+      setLoading(true);
+      setError(null);
+  
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+  
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+  
+      // Update subscription
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          subscription_type: type,
+          subscription_start: new Date().toISOString(),
+          subscription_end: type === 'yearly' ? 
+            new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : 
+            null
+        })
+        .eq('id', user.id);
+  
+      if (updateError) throw updateError;
+  
+      // Navigate based on subscription type
+      if (type === 'onetime') {
+        navigate('/form', { 
+          state: { 
+            subscriptionType: 'onetime',
+            isNew: true
+          },
+          replace: true  // Add this to replace the current route
+        });
+      } else if (type === 'yearly') {
+        navigate('/dashboard', { 
+          state: { 
+            subscriptionType: 'yearly'
+          },
+          replace: true  // Add this to replace the current route
+        });
+      }
+  
+    } catch (error) {
+      console.error('Subscription error:', error);
+      setError('Error selecting subscription. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+    
+  const handleSubmit = async (formData) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+  
+      // Save will data
+      const { data: willData, error: willError } = await supabase
+        .from('wills')
+        .insert([{
+          user_id: user.id,
+          testator_name: formData.testatorName,
+          prefix: formData.prefix,
+          suffix: formData.suffix,
+          occupation: formData.occupation,
+          address: formData.address,
+          parish: formData.parish,
+          content: formData,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+  
+      if (willError) throw willError;
+  
+      // Navigate back to dashboard with success message
+      navigate('/dashboard', { 
+        state: { 
+          message: 'Will created successfully!',
+          willId: willData.id 
+        }
+      });
+    } catch (error) {
+      console.error('Error saving will:', error);
+      alert('Failed to save will. Please try again.');
+    }
+  };
+
+
+
+
+  
+
+
    
   const handleGrandchildChange = (e, index, field) => {
     const { value } = e.target;
@@ -140,7 +247,79 @@ const WillGenerator = () => {
     }));
   };
     
-     
+
+
+  const saveToSupabase = async (formData) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase
+        .from('wills')
+        .insert([
+          {
+            user_id: user.id,
+            testatorName: formData.testatorName,
+            content: formData,
+            created_at: new Date().toISOString()
+          }
+        ]);
+  
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error saving will:', error);
+      throw error;
+    }
+  };
+  
+  
+
+  // Updated handleSubmit function
+  // Inside your WillGenerator component
+
+// Modified handleSubmit function for both one-time and yearly users
+
+
+
+
+   
+   
+
+  
+  // Updated handleGeneratePDF function
+  const handleGeneratePDF = async () => {
+    try {
+      // Your existing PDF generation code stays the same
+      const pdfBytes = await generatePDF(formData);
+      
+      // Create and trigger download
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+  
+      return true;
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      throw new Error('Error generating PDF. Please try again.');
+    }
+  };
+      
+
+    
+  
+
+
+
+
+
+
+
 
   
   const GrandchildrenSection = ({ formData, handleInputChange, removeGrandchild, addGrandchild }) => {
@@ -793,35 +972,7 @@ const WillGenerator = () => {
 
   
 
-  const handlePreviousStep = () => {
-    let prevStep = currentStep - 1;
   
-    // Handle guardian section navigation
-    if (currentStep === 9) {
-      const minorChildren = formData.children.filter(child => 
-        child.dateOfBirth && calculateAge(child.dateOfBirth) < 18
-      );
-      
-      // Skip guardian details if no minor children or livingChildren is 'no'
-      if ((minorChildren.length === 0 && formData.livingGrandchildren !== 'yes') || 
-          formData.livingChildren === 'no') {
-        prevStep = 7;
-      }
-    }
-    
-    // Handle possession section navigation
-    else if (currentStep === 17) {
-      // Go back to Add Possession step
-      prevStep = 11;
-    }
-    // Skip possession-specific steps when going back
-    else if ([12, 13, 14, 15, 16].includes(currentStep)) {
-      prevStep = 11;
-    }
-  
-    // Ensure we don't go below step 1
-    setCurrentStep(Math.max(1, prevStep));
-  };
 
      // create empty possesions //
 
@@ -1505,6 +1656,35 @@ const handleAddBeneficiary = () => {
      // update format // 
 
 
+     const handlePreviousStep = () => {
+      let prevStep = currentStep - 1;
+    
+      // Handle guardian section navigation
+      if (currentStep === 9) {
+        const minorChildren = formData.children.filter(child => 
+          child.dateOfBirth && calculateAge(child.dateOfBirth) < 18
+        );
+        
+        // Skip guardian details if no minor children or livingChildren is 'no'
+        if ((minorChildren.length === 0 && formData.livingGrandchildren !== 'yes') || 
+            formData.livingChildren === 'no') {
+          prevStep = 7;
+        }
+      }
+      
+      // Handle possession section navigation
+      else if (currentStep === 17) {
+        // Go back to Add Possession step
+        prevStep = 11;
+      }
+      // Skip possession-specific steps when going back
+      else if ([12, 13, 14, 15, 16].includes(currentStep)) {
+        prevStep = 11;
+      }
+    
+      // Ensure we don't go below step 1
+      setCurrentStep(Math.max(1, prevStep));
+    };
      
 
 
@@ -2533,23 +2713,7 @@ const formatPossessionDetails = (type, item) => {
 
 
 // Helper function to handle PDF download
-const handleGeneratePDF = async () => {
-  try {
-    const pdfBytes = await generatePDF(formData);
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Last_Will_and_Testament_${formData.testatorName || 'Document'}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Error generating PDF:', error);
-    alert('Error generating PDF. Please try again.');
-  }
-};
+
   // When adding a possession
 const handleAddPossession = (type) => {
   const newPossession = {
@@ -2684,12 +2848,7 @@ const handleAddPossession = (type) => {
 
 
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    generatePDF();
-  };
-
-  
+  // Update your handleSubmit in WillGenerator.jsx
 
 
       
@@ -3847,7 +4006,10 @@ const removeBequest = (index) => {
             </section>
           );
   
-        case 20:
+          
+          // Update your final step (case 20) in renderStep():
+          
+          case 20:
             return(
               <section className="space-y-6">
               <h2 className="text-2xl font-semibold mb-4">Generate Will</h2>
@@ -3861,7 +4023,8 @@ const removeBequest = (index) => {
             </section>
             );
 
-        
+
+         
       default:
         return null;
     }

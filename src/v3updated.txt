@@ -557,3 +557,94 @@ const WillGenerator = () => {
 
 export default WillGenerator;
 TypeError: supabase.auth.user is not a function. (In 'supabase.auth.user()', 'supabase.auth.user' is undefined)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Last Will and Testament Generator</h1>
+      
+      {/* Progress indicator */}
+      <div className="mb-8">
+        <div className="flex justify-between">
+          {Array.from({ length: totalSteps }, (_, i) => {
+            const step = i + 1;
+            // Don't show skipped steps
+            if (![12, 13, 14, 15, 16].includes(step)) {
+              return (
+                <div
+                  key={step}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    step === currentStep
+                      ? 'bg-blue-500 text-white'
+                      : step < currentStep
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300'
+                  }`}
+                >
+                  {step}
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </div>
+
+      <form onSubmit={(e) => e.preventDefault()}>
+        {renderStep()}
+        
+        <div className="flex justify-between mt-8">
+          <button
+            type="button"
+            onClick={handlePreviousStep}
+            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+            disabled={currentStep === 1}
+          >
+            Previous
+          </button>
+          
+          <button
+            type="button"
+            onClick={navigateForward}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Next
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
