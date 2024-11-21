@@ -1,138 +1,237 @@
 import React, { useState } from 'react';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { checkSubscription } from './subscriptionUtils';
-
+import { useLocation } from 'react-router';
+// Add to your existing imports
 
 const WillGenerator = () => {
+  const location = useLocation();
   const totalSteps = 20; // Add this constant for step tracking
   const [currentStep, setCurrentStep] = useState(1);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [willId, setWillId] = useState(null); 
+
+
+  
+  
+      
   
   // Your existing state structure
-  const [formData, setFormData] = useState({
-    // Testator Information
-    testatorName: '',
-    occupation: '',
-    address: '',
-    parish: '',
-    prefix: '',
-    suffix: '',
-    gender: '',
-  
-    // Family Status
-    maritalStatus: '',
-    livingChildren: 'no',
-    livingGrandchildren: 'no',
-  
-    // Spouse Information
-    spouse: {
-      fullName: '',
-      relation: '',
-      occupation: ''
-    },
-
-  
-  
-    // Children
-    children: [],
-    minorChildren: [], // Add this for minor children
-    livingChildren: 'no',
-  children: [],
-  guardians: [], // Add this
-  
-    // Deceased Family Members
-    hasDeceasedFamilyMembers: 'no',
-    deceasedFamilyMembers: [],
-  
-    // Beneficiaries
-    additionalBeneficiaries: [],
-    otherBeneficiaries: 'none',
-
-     // ... other state
-  children: [],
-  additionalBeneficiaries: [],
-  possessions: [],
-  
-    // Guardians
-    guardians: [],
-  
-    executors: [
-      { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
-      { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' }
-    ],
-    witnesses: [
-      { name: '', email: '', address: '', parish: '', occupation: '' },
-      { name: '', email: '', address: '', parish: '',  occupation: '' }
-    ],
-
-    // Possessions
-    selectedPossession: '',
-    properties: [],
-    shares: [],
-    insurance: [],
-    bankAccounts: [],
-    motorVehicles: [],
-    unpaidSalary: {
-      employer: '',
-      employerAddress: '',
-      beneficiary: ''
-    },
-    nhtContributions: {
-      nhtNumber: '',
-      taxNumber: '',
-      beneficiary: ''
-    },
-    jewellery: {
-      description: '',
-      beneficiary: ''
-    },
-    furniture: {
-      beneficiary: ''
-    },
-    paintings: {
-      beneficiary: ''
-    },
-    firearm: {
-      serialNumber: '',
-      licenseNumber: '',
-      beneficiary: ''
-    },
-
-    selectedPossession: '',
-    possessions: [],
-  
-    // Residual Estate
-    residualEstate: {
-      beneficiaries: []
-    },
-     
-
-  livingGrandchildren: 'no',
-  grandchildrenInclusion: '',
-  grandchildren: [],
-   
-    // Bequests
-    bequests: [],
-    bequests: [],
-    possessions: [],
-    children: [],
-    additionalBeneficiaries: [],
-  
-    // Funeral Arrangements
-    funeralDetails: '',
-    clothingDetails: '',
-    remainsDetails: '',
-    songs: ['', '', ''],
-  
-    // Witnesses and Signature
-    witnesses: [
-      { name: '', address: '', occupation: '' },
-      { name: '', address: '', occupation: '' }
-    ],
-    signatureDate: ''
-  });
-
-     
  
+
+  const [formData, setFormData] = useState(() => {
+    const userEmail = localStorage.getItem('userEmail') || 'guest';
+    const formKey = `willForm_${userEmail}`;
+    const savedData = localStorage.getItem(formKey);
+    
+    return savedData ? JSON.parse(savedData) : {
+      // Personal Information
+      testatorName: '',
+      occupation: '',
+      address: '',
+      parish: '',
+      prefix: '',
+      suffix: '',
+      gender: '',
+      
+      // Family Status
+      maritalStatus: '',
+      livingChildren: 'no',
+      livingGrandchildren: 'no',
+      grandchildrenInclusion: '',
+      
+      // Spouse Information
+      spouse: {
+        fullName: '',
+        relation: '',
+        occupation: ''
+      },
+  
+      // Children
+      children: [],
+      minorChildren: [],
+      guardians: [],
+      grandchildren: [],
+  
+      // Deceased Family Members
+      hasDeceasedFamilyMembers: 'no',
+      deceasedFamilyMembers: [],
+  
+      // Beneficiaries
+      additionalBeneficiaries: [],
+      otherBeneficiaries: 'none',
+  
+      // Executors
+      executors: [
+        { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+        { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' }
+      ],
+  
+      // Witnesses
+      witnesses: [
+        { name: '', email: '', address: '', parish: '', occupation: '' },
+        { name: '', email: '', address: '', parish: '', occupation: '' }
+      ],
+  
+      // Possessions
+      selectedPossession: '',
+      possessions: [],
+      properties: [],
+      shares: [],
+      insurance: [],
+      bankAccounts: [],
+      motorVehicles: [],
+      
+      unpaidSalary: {
+        employer: '',
+        employerAddress: '',
+        beneficiary: ''
+      },
+      
+      nhtContributions: {
+        nhtNumber: '',
+        taxNumber: '',
+        beneficiary: ''
+      },
+      
+      jewellery: {
+        description: '',
+        beneficiary: ''
+      },
+      
+      furniture: {
+        beneficiary: ''
+      },
+      
+      paintings: {
+        beneficiary: ''
+      },
+      
+      firearm: {
+        serialNumber: '',
+        licenseNumber: '',
+        beneficiary: ''
+      },
+  
+      // Residual Estate
+      residualEstate: {
+        beneficiaries: []
+      },
+  
+      // Bequests
+      bequests: [],
+  
+      // Funeral Arrangements
+      funeralDetails: '',
+      clothingDetails: '',
+      remainsDetails: '',
+      songs: ['', '', ''],
+  
+      signatureDate: ''
+    };
+  });
+  
+  const handleInputChange = (e, section, field, index = null) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    const userEmail = localStorage.getItem('userEmail') || 'guest';
+    const formKey = `willForm_${userEmail}`;
+  
+    setFormData(prev => {
+      let newData;
+      if (section && index !== null) {
+        newData = {
+          ...prev,
+          [section]: prev[section].map((item, i) =>
+            i === index ? { ...item, [field]: value } : item
+          )
+        };
+      } else if (section) {
+        newData = {
+          ...prev,
+          [section]: {
+            ...prev[section],
+            [field]: value
+          }
+        };
+      } else {
+        newData = {
+          ...prev,
+          [field]: value
+        };
+      }
+      
+      localStorage.setItem(formKey, JSON.stringify(newData));
+      return newData;
+    });
+  };
+  
+  const clearForm = () => {
+    const userEmail = localStorage.getItem('userEmail') || 'guest';
+    const formKey = `willForm_${userEmail}`;
+    localStorage.removeItem(formKey);
+    window.location.reload();
+  };
+  
+  const checkSavedData = () => {
+    const userEmail = localStorage.getItem('userEmail') || 'guest';
+    const formKey = `willForm_${userEmail}`;
+    const saved = localStorage.getItem(formKey);
+    console.log('Currently saved data:', saved ? JSON.parse(saved) : 'No data saved');
+  };
+      
+     
+
+  const handleSaveProgress = () => {
+    try {
+      const savedWills = JSON.parse(localStorage.getItem('savedWills') || '[]');
+      const willData = {
+        id: willId || Date.now().toString(),
+        formData,
+        createdAt: isEditMode ? savedWills.find(w => w.id === willId)?.createdAt : new Date().toISOString(),
+        lastModified: new Date().toISOString(),
+        testatorName: formData.testatorName,
+        status: 'draft'
+      };
+  
+      if (isEditMode) {
+        const updatedWills = savedWills.map(will => 
+          will.id === willId ? willData : will
+        );
+        localStorage.setItem('savedWills', JSON.stringify(updatedWills));
+      } else {
+        localStorage.setItem('savedWills', JSON.stringify([...savedWills, willData]));
+        setWillId(willData.id);
+        setIsEditMode(true);
+      }
+  
+      alert('Progress saved successfully!');
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      alert('Error saving progress. Please try again.');
+    }
+  };
+
+
+    
+  const handleSave = () => {
+    try {
+      // Save to localStorage
+      localStorage.setItem('willFormData', JSON.stringify(formData));
+      alert('Progress saved successfully!');
+    } catch (error) {
+      console.error('Error saving data:', error);
+      alert('Failed to save progress. Please try again.');
+    }
+  };
+    
+
+
+       
+
+      
+  
+
+  
 
 
     
@@ -503,48 +602,6 @@ const WillGenerator = () => {
   
 
  
-  const handleInputChange = (e, section, field, index = null) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    
-    setFormData(prev => {
-      const newData = { ...prev };
-      
-      if (section && index !== null) {
-        // Handle array updates
-        if (!Array.isArray(newData[section])) {
-          newData[section] = [];
-        }
-        
-        if (!newData[section][index]) {
-          newData[section][index] = {};
-        }
-        
-        newData[section] = [
-          ...newData[section].slice(0, index),
-          {
-            ...newData[section][index],
-            [field]: value
-          },
-          ...newData[section].slice(index + 1)
-        ];
-      } else if (section) {
-        // Handle nested object updates
-        if (!newData[section]) {
-          newData[section] = {};
-        }
-        newData[section] = {
-          ...newData[section],
-          [field]: value
-        };
-      } else {
-        // Handle direct updates
-        newData[field] = value;
-      }
-      
-      return newData;
-    });
-  };
-  
   
     
      
@@ -874,18 +931,7 @@ const WillGenerator = () => {
   };
 
    
-  const handleSave = () => {
-    try {
-      // Save to localStorage
-      localStorage.setItem('willFormData', JSON.stringify(formData));
-      alert('Progress saved successfully!');
-    } catch (error) {
-      console.error('Error saving data:', error);
-      alert('Failed to save progress. Please try again.');
-    }
-  };
-    
-
+ 
 
 
     
@@ -4020,6 +4066,9 @@ const removeBequest = (index) => {
               >
                 Generate Will PDF
               </button>
+                <button onClick={()=>{
+                  location.href="/dashboard"
+                }}>click to Dashboard</button>
             </section>
             );
 

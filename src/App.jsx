@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './AppRoutes';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
+import EditWillForm from './EditWillForm';
 
 // Separate LoadingSpinner component
 const LoadingSpinner = () => (

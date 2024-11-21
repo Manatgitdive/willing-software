@@ -556,3 +556,459 @@ const WillGenerator = () => {
 };
 
 export default WillGenerator;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+  const [formData, setFormData] = useState(() => {
+    const savedData = localStorage.getItem('willFormData');
+    return savedData ? JSON.parse(savedData) : {
+      // Personal Information
+      testatorName: '',
+      occupation: '',
+      address: '',
+      parish: '',
+      prefix: '',
+      suffix: '',
+      gender: '',
+      
+      // Family Status
+      maritalStatus: '',
+      livingChildren: 'no',
+      livingGrandchildren: 'no',
+      grandchildrenInclusion: '',
+      
+      // Spouse Information
+      spouse: {
+        fullName: '',
+        relation: '',
+        occupation: ''
+      },
+  
+      // Children
+      children: [],
+      minorChildren: [],
+      guardians: [],
+      grandchildren: [],
+  
+      // Deceased Family Members
+      hasDeceasedFamilyMembers: 'no',
+      deceasedFamilyMembers: [],
+  
+      // Beneficiaries
+      additionalBeneficiaries: [],
+      otherBeneficiaries: 'none',
+  
+      // Executors
+      executors: [
+        { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+        { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' }
+      ],
+  
+      // Witnesses
+      witnesses: [
+        { name: '', email: '', address: '', parish: '', occupation: '' },
+        { name: '', email: '', address: '', parish: '', occupation: '' }
+      ],
+  
+      // Possessions
+      selectedPossession: '',
+      possessions: [],
+      properties: [],
+      shares: [],
+      insurance: [],
+      bankAccounts: [],
+      motorVehicles: [],
+      
+      unpaidSalary: {
+        employer: '',
+        employerAddress: '',
+        beneficiary: ''
+      },
+      
+      nhtContributions: {
+        nhtNumber: '',
+        taxNumber: '',
+        beneficiary: ''
+      },
+      
+      jewellery: {
+        description: '',
+        beneficiary: ''
+      },
+      
+      furniture: {
+        beneficiary: ''
+      },
+      
+      paintings: {
+        beneficiary: ''
+      },
+      
+      firearm: {
+        serialNumber: '',
+        licenseNumber: '',
+        beneficiary: ''
+      },
+  
+      // Residual Estate
+      residualEstate: {
+        beneficiaries: []
+      },
+  
+      // Bequests
+      bequests: [],
+  
+      // Funeral Arrangements
+      funeralDetails: '',
+      clothingDetails: '',
+      remainsDetails: '',
+      songs: ['', '', ''],
+  
+      signatureDate: ''
+    };
+  });
+
+     
+
+  const handleInputChange = (e, section, field, index = null) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    
+    setFormData(prev => {
+      let newData;
+      
+      if (section && index !== null) {
+        // Handle array updates
+        newData = {
+          ...prev,
+          [section]: prev[section].map((item, i) => 
+            i === index ? { ...item, [field]: value } : item
+          )
+        };
+      } else if (section) {
+        // Handle nested object updates
+        newData = {
+          ...prev,
+          [section]: {
+            ...prev[section],
+            [field]: value
+          }
+        };
+      } else {
+        // Handle direct field updates
+        newData = {
+          ...prev,
+          [field]: value
+        };
+      }
+  
+      // Save to localStorage immediately after any change
+      localStorage.setItem('willFormData', JSON.stringify(newData));
+      return newData;
+    });
+  };
+  
+  // Add these functions to help with testing
+  const clearForm = () => {
+    localStorage.removeItem('willFormData');
+    window.location.reload();
+  };
+  
+  const checkSavedData = () => {
+    const saved = localStorage.getItem('willFormData');
+    console.log('Currently saved data:', saved ? JSON.parse(saved) : 'No data saved');
+  };
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const [formData, setFormData] = useState(() => {
+ const savedData = localStorage.getItem('willFormData');
+return savedData ? JSON.parse(savedData) : {
+// Personal Information
+testatorName: '',
+occupation: '',
+address: '',
+parish: '',
+prefix: '',
+suffix: '',
+gender: '',
+// Family Status
+maritalStatus: '',
+livingChildren: 'no',
+livingGrandchildren: 'no',
+grandchildrenInclusion: '',
+// Spouse Information
+spouse: {
+fullName: '',
+relation: '',
+occupation: ''
+ },
+// Children
+children: [],
+minorChildren: [],
+guardians: [],
+grandchildren: [],
+// Deceased Family Members
+hasDeceasedFamilyMembers: 'no',
+deceasedFamilyMembers: [],
+// Beneficiaries
+additionalBeneficiaries: [],
+otherBeneficiaries: 'none',
+// Executors
+executors: [
+ { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+ { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' }
+ ],
+// Witnesses
+witnesses: [
+ { name: '', email: '', address: '', parish: '', occupation: '' },
+ { name: '', email: '', address: '', parish: '', occupation: '' }
+ ],
+// Possessions
+selectedPossession: '',
+possessions: [],
+properties: [],
+shares: [],
+insurance: [],
+bankAccounts: [],
+motorVehicles: [],
+unpaidSalary: {
+employer: '',
+employerAddress: '',
+beneficiary: ''
+ },
+nhtContributions: {
+nhtNumber: '',
+taxNumber: '',
+beneficiary: ''
+ },
+jewellery: {
+description: '',
+beneficiary: ''
+ },
+furniture: {
+beneficiary: ''
+ },
+paintings: {
+beneficiary: ''
+ },
+firearm: {
+serialNumber: '',
+licenseNumber: '',
+beneficiary: ''
+ },
+// Residual Estate
+residualEstate: {
+beneficiaries: []
+ },
+// Bequests
+bequests: [],
+// Funeral Arrangements
+funeralDetails: '',
+clothingDetails: '',
+remainsDetails: '',
+songs: ['', '', ''],
+signatureDate: ''
+ };
+ });
+const handleInputChange = (e, section, field, index = null) => {
+const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+setFormData(prev => {
+let newData;
+if (section && index !== null) {
+// Handle array updates
+newData = {
+...prev,
+[section]: prev[section].map((item, i) =>
+i === index ? { ...item, [field]: value } : item
+ )
+ };
+ } else if (section) {
+// Handle nested object updates
+newData = {
+...prev,
+[section]: {
+...prev[section],
+[field]: value
+ }
+ };
+ } else {
+// Handle direct field updates
+newData = {
+...prev,
+[field]: value
+ };
+ }
+// Save to localStorage immediately after any change
+localStorage.setItem('willFormData', JSON.stringify(newData));
+return newData;
+ });
+ };
+// Add these functions to help with testing
+const clearForm = () => {
+localStorage.removeItem('willFormData');
+window.location.reload();
+ };
+const checkSavedData = () => {
+const saved = localStorage.getItem('willFormData');
+console.log('Currently saved data:', saved ? JSON.parse(saved) : 'No data saved');
+ };

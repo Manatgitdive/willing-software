@@ -1,0 +1,340 @@
+// Add this useEffect at the start of your WillGenerator component
+useEffect(() => {
+  const email = supabase.auth.user()?.email;
+  if (email) {
+    localStorage.setItem('currentUserEmail', email);
+  }
+}, []);
+
+const [formData, setFormData] = useState(() => {
+  const userEmail = supabase.auth.user()?.email; // Get current user's email directly from auth
+  const formKey = `willFormData_${userEmail}`; // Create unique key using email
+  const savedData = localStorage.getItem(formKey); // Use the unique key to get data
+
+  return savedData ? JSON.parse(savedData) : {
+    // Personal Information
+    testatorName: '',
+    occupation: '',
+    address: '',
+    parish: '',
+    prefix: '',
+    suffix: '',
+    gender: '',
+    // ... rest of your initial state
+  };
+});
+
+const handleInputChange = (e, section, field, index = null) => {
+  const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+  const userEmail = supabase.auth.user()?.email;
+  const formKey = `willFormData_${userEmail}`; 
+
+  setFormData(prev => {
+    let newData;
+    if (section && index !== null) {
+      newData = {
+        ...prev,
+        [section]: prev[section].map((item, i) =>
+          i === index ? { ...item, [field]: value } : item
+        )
+      };
+    } else if (section) {
+      newData = {
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: value
+        }
+      };
+    } else {
+      newData = {
+        ...prev,
+        [field]: value
+      };
+    }
+    
+    localStorage.setItem(formKey, JSON.stringify(newData));
+    return newData;
+  });
+};
+
+// Add this to your login handler (where you handle user login)
+const handleLogin = async (email, password) => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (data?.user) {
+    localStorage.setItem('currentUserEmail', data.user.email);
+    // Clear any existing form data for different users
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('willFormData_') && !key.includes(data.user.email)) {
+        localStorage.removeItem(key);
+      }
+    });
+  }
+};
+
+// Add this to your logout handler
+const handleLogout = async () => {
+  const userEmail = supabase.auth.user()?.email;
+  if (userEmail) {
+    localStorage.removeItem(`willFormData_${userEmail}`);
+    localStorage.removeItem('currentUserEmail');
+  }
+  await supabase.auth.signOut();
+};
+
+const clearForm = () => {
+  const userEmail = supabase.auth.user()?.email;
+  const formKey = `willFormData_${userEmail}`;
+  localStorage.removeItem(formKey);
+  window.location.reload();
+};
+
+const checkSavedData = () => {
+  const userEmail = supabase.auth.user()?.email;
+  const formKey = `willFormData_${userEmail}`;
+  const saved = localStorage.getItem(formKey);
+  console.log('Currently saved data:', saved ? JSON.parse(saved) : 'No data saved');
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const [formData, setFormData] = useState(() => {
+    const userEmail = localStorage.getItem('currentUserEmail'); // Get logged-in user's email
+  const formKey = `willFormData_${userEmail}`; // Create unique key for this user
+  const savedData = localStorage.getItem(formKey);
+   return savedData ? JSON.parse(savedData) : {
+   // Personal Information
+   testatorName: '',
+   occupation: '',
+   address: '',
+   parish: '',
+   prefix: '',
+   suffix: '',
+   gender: '',
+   // Family Status
+   maritalStatus: '',
+   livingChildren: 'no',
+   livingGrandchildren: 'no',
+   grandchildrenInclusion: '',
+   // Spouse Information
+   spouse: {
+   fullName: '',
+   relation: '',
+   occupation: ''
+    },
+   // Children
+   children: [],
+   minorChildren: [],
+   guardians: [],
+   grandchildren: [],
+   // Deceased Family Members
+   hasDeceasedFamilyMembers: 'no',
+   deceasedFamilyMembers: [],
+   // Beneficiaries
+   additionalBeneficiaries: [],
+   otherBeneficiaries: 'none',
+   // Executors
+   executors: [
+    { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' },
+    { name: '', relationship: '', email: '', occupation: '', address: '', parish: '' }
+    ],
+   // Witnesses
+   witnesses: [
+    { name: '', email: '', address: '', parish: '', occupation: '' },
+    { name: '', email: '', address: '', parish: '', occupation: '' }
+    ],
+   // Possessions
+   selectedPossession: '',
+   possessions: [],
+   properties: [],
+   shares: [],
+   insurance: [],
+   bankAccounts: [],
+   motorVehicles: [],
+   unpaidSalary: {
+   employer: '',
+   employerAddress: '',
+   beneficiary: ''
+    },
+   nhtContributions: {
+   nhtNumber: '',
+   taxNumber: '',
+   beneficiary: ''
+    },
+   jewellery: {
+   description: '',
+   beneficiary: ''
+    },
+   furniture: {
+   beneficiary: ''
+    },
+   paintings: {
+   beneficiary: ''
+    },
+   firearm: {
+   serialNumber: '',
+   licenseNumber: '',
+   beneficiary: ''
+    },
+   // Residual Estate
+   residualEstate: {
+   beneficiaries: []
+    },
+   // Bequests
+   bequests: [],
+   // Funeral Arrangements
+   funeralDetails: '',
+   clothingDetails: '',
+   remainsDetails: '',
+   songs: ['', '', ''],
+   signatureDate: ''
+    };
+    });
+
+
+
+    const handleInputChange = (e, section, field, index = null) => {
+      const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      const userEmail = localStorage.getItem('currentUserEmail');
+      const formKey = `willFormData_${userEmail}`; // Use user-specific key
+    
+      setFormData(prev => {
+        let newData;
+        if (section && index !== null) {
+          newData = {
+            ...prev,
+            [section]: prev[section].map((item, i) =>
+              i === index ? { ...item, [field]: value } : item
+            )
+          };
+        } else if (section) {
+          newData = {
+            ...prev,
+            [section]: {
+              ...prev[section],
+              [field]: value
+            }
+          };
+        } else {
+          newData = {
+            ...prev,
+            [field]: value
+          };
+        }
+        
+        // Save to user-specific storage
+        localStorage.setItem(formKey, JSON.stringify(newData)); // Use formKey instead of 'willFormData'
+        return newData;
+      });
+    };
+
+
+   
+  
+       
+
+
+     
+
+    
+
+
+   // Add these functions to help with testing
+   const clearForm = () => {
+    const userEmail = localStorage.getItem('currentUserEmail');
+    const formKey = `willFormData_${userEmail}`;
+    localStorage.removeItem(formKey); // Clear only this user's data
+    window.location.reload();
+  };
+
+
+  const checkSavedData = () => {
+    const userEmail = localStorage.getItem('currentUserEmail');
+    const formKey = `willFormData_${userEmail}`;
+    const saved = localStorage.getItem(formKey);
+    console.log('Currently saved data:', saved ? JSON.parse(saved) : 'No data saved');
+  };
+ 
+
+
+
+
+
+
+
+1981 ///
+
+
+
+
+
+
+
+
+  const renderInput = (section, field, label, index = null) => {
+    const value = section 
+      ? index !== null 
+        ? formData[section]?.[index]?.[field] || ''
+        : formData[section]?.[field] || ''
+      : formData[field] || '';
+  
+    return (
+      <div className="mb-4">
+        <label className="block text-gray-700 text-sm font-bold mb-2">
+          {label}
+        </label>
+        <input
+          type="text"
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          value={value}
+          onChange={(e) => handleInputChange(e, section, field, index)}
+        />
+      </div>
+    );
+  };

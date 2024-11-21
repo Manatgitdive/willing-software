@@ -14,11 +14,7 @@ import {
   AlertCircle,
   X,
   Download
-} from 'lucide-react'; 
-
-
-
-
+} from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
