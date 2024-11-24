@@ -129,8 +129,13 @@ const WillGenerator = () => {
   
       signatureDate: ''
     };
+
   });
+
+ 
   
+
+
   const handleInputChange = (e, section, field, index = null) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     const userEmail = localStorage.getItem('userEmail') || 'guest';
@@ -3115,117 +3120,146 @@ const removeBequest = (index) => {
             {renderInput('spouse', 'occupation', 'Occupation')}
           </section>
         );
-      case 5:
-        return (
-          <section className="space-y-6">
-          <h2 className="text-2xl font-semibold">Identify Children</h2>
-          
-          {formData.children.map((child, index) => (
-            <div key={index} className="p-6 border rounded-lg shadow-sm space-y-4">
-              <h3 className="text-xl font-semibold">Child {index + 1}</h3>
+
+        case 5:
+          return (
+            <section className="space-y-6">
+              <h2 className="text-2xl font-semibold">Identify Children</h2>
               
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Child's Full Name</label>
-                <input
-                  type="text"
-                  value={child.fullName}
-                  onChange={(e) => handleInputChange(e, 'children', 'fullName', index)}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Relationship</label>
-                <div className="space-x-4">
-                  {['Son', 'Daughter', 'Gender Neutral Child'].map((rel) => (
-                    <label key={rel} className="inline-flex items-center">
+              {formData.children.map((child, index) => {
+                // Calculate age from date of birth
+                const calculateAge = (birthDate) => {
+                  if (!birthDate) return 0;
+                  const today = new Date();
+                  const birth = new Date(birthDate);
+                  let age = today.getFullYear() - birth.getFullYear();
+                  const monthDiff = today.getMonth() - birth.getMonth();
+                  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                    age--;
+                  }
+                  return age;
+                };
+        
+                const age = calculateAge(child.dateOfBirth);
+                const isAdult = age >= 18;
+        
+                return (
+                  <div key={index} className="p-6 border rounded-lg shadow-sm space-y-4">
+                    <h3 className="text-xl font-semibold">Child {index + 1}</h3>
+                    
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">Child's Full Name</label>
                       <input
-                        type="radio"
-                        name={`relationship-${index}`}
-                        value={rel.toLowerCase()}
-                        checked={child.relationship === rel.toLowerCase()}
-                        onChange={(e) => handleInputChange(e, 'children', 'relationship', index)}
-                        className="mr-2"
+                        type="text"
+                        value={child.fullName}
+                        onChange={(e) => handleInputChange(e, 'children', 'fullName', index)}
+                        className="w-full p-2 border rounded"
                       />
-                      {rel}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Child's Date of Birth</label>
-                <input
-                  type="date"
-                  value={child.dateOfBirth}
-                  onChange={(e) => handleInputChange(e, 'children', 'dateOfBirth', index)}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Email Address</label>
-                <input
-                  type="email"
-                  value={child.email}
-                  onChange={(e) => handleInputChange(e, 'children', 'email', index)}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Occupation</label>
-                <input
-                  type="text"
-                  value={child.occupation}
-                  onChange={(e) => handleInputChange(e, 'children', 'occupation', index)}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-
-              <div>
-            <label className="block text-gray-700 font-medium mb-2">Address</label>
-            <input
-              type="text"
-              value={child.address || ''}
-              onChange={(e) => handleInputChange(e, 'children', 'address', index)}
-              className="w-full p-2 border rounded"
-              placeholder="Enter address"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Parish</label>
-            <input
-              type="text"
-              value={child.parish || ''}
-              onChange={(e) => handleInputChange(e, 'children', 'parish', index)}
-              className="w-full p-2 border rounded"
-              placeholder="Enter parish"
-            />
-          </div>
-
-
+                    </div>
+        
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">Relationship</label>
+                      <div className="space-x-4">
+                        {['Son', 'Daughter', 'Gender Neutral Child'].map((rel) => (
+                          <label key={rel} className="inline-flex items-center">
+                            <input
+                              type="radio"
+                              name={`relationship-${index}`}
+                              value={rel.toLowerCase()}
+                              checked={child.relationship === rel.toLowerCase()}
+                              onChange={(e) => handleInputChange(e, 'children', 'relationship', index)}
+                              className="mr-2"
+                            />
+                            {rel}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+        
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">Child's Date of Birth</label>
+                      <input
+                        type="date"
+                        value={child.dateOfBirth}
+                        onChange={(e) => handleInputChange(e, 'children', 'dateOfBirth', index)}
+                        className="w-full p-2 border rounded"
+                      />
+                      {child.dateOfBirth && (
+                        <p className="text-sm text-gray-600 mt-1">Age: {age} years old</p>
+                      )}
+                    </div>
+        
+                    {/* Show email and occupation only if age is 18 or above */}
+                    {isAdult && (
+                      <>
+                        <div>
+                          <label className="block text-gray-700 font-medium mb-2">Email Address</label>
+                          <input
+                            type="email"
+                            value={child.email}
+                            onChange={(e) => handleInputChange(e, 'children', 'email', index)}
+                            className="w-full p-2 border rounded"
+                          />
+                        </div>
+        
+                        <div>
+                          <label className="block text-gray-700 font-medium mb-2">Occupation</label>
+                          <input
+                            type="text"
+                            value={child.occupation}
+                            onChange={(e) => handleInputChange(e, 'children', 'occupation', index)}
+                            className="w-full p-2 border rounded"
+                          />
+                        </div>
+                      </>
+                    )}
+        
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">Address</label>
+                      <input
+                        type="text"
+                        value={child.address || ''}
+                        onChange={(e) => handleInputChange(e, 'children', 'address', index)}
+                        className="w-full p-2 border rounded"
+                        placeholder="Enter address"
+                      />
+                    </div>
+        
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">Parish</label>
+                      <input
+                        type="text"
+                        value={child.parish || ''}
+                        onChange={(e) => handleInputChange(e, 'children', 'parish', index)}
+                        className="w-full p-2 border rounded"
+                        placeholder="Enter parish"
+                      />
+                    </div>
+        
+                    <button
+                      type="button"
+                      onClick={() => removeChild(index)}
+                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                    >
+                      Remove Child
+                    </button>
+                  </div>
+                );
+              })}
+        
               <button
                 type="button"
-                onClick={() => removeChild(index)}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                onClick={addChild}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
               >
-                Remove Child
+                Add Child
               </button>
-            </div>
-          ))}
+            </section>
+          );
 
-          <button
-            type="button"
-            onClick={addChild}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Add Child
-          </button>
-        </section>
-          
-        );
+
+     
+
       case 6:
         return (
             <section>
