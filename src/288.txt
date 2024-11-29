@@ -1,0 +1,725 @@
+import React, { useState, useEffect } from 'react';
+import { Share2, Lock, Mail, Clock, CheckCircle, Upload, AlertCircle, X } from 'lucide-react';
+import emailjs from '@emailjs/browser';
+
+// Replace these with your EmailJS credentials
+const EMAILJS_SERVICE_ID = 'service_0r2vqrz';
+const EMAILJS_TEMPLATE_ID = 'template_i7h45vh';
+const EMAILJS_PUBLIC_KEY = '5FJ0awXterm7vPfMT';
+
+export default function ShareWill() {
+  const [showModal, setShowModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [beneficiaries, setBeneficiaries] = useState([]);
+
+  // Initialize EmailJS
+  useEffect(() => {
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+  }, []);
+
+  // Load beneficiaries when modal opens
+  useEffect(() => {
+    if (showModal) {
+      loadBeneficiaries();
+    }
+  }, [showModal]);
+
+  const loadBeneficiaries = () => {
+    try {
+      const userEmail = localStorage.getItem('userEmail') || 'guest';
+      const formKey = `willForm_${userEmail}`;
+      const willData = JSON.parse(localStorage.getItem(formKey) || '{}');
+
+      const allBeneficiaries = [
+        ...(willData.children || []).map(child => ({
+          email: child.email,
+          fullName: child.fullName,
+          type: 'Child',
+          relationship: child.relationship,
+          password: Math.random().toString(36).slice(-8)
+        })),
+        ...(willData.additionalBeneficiaries || []).map(ben => ({
+          email: ben.email,
+          fullName: ben.fullName,
+          type: ben.type,
+          relationship: ben.relationship,
+          password: Math.random().toString(36).slice(-8)
+        }))
+      ].filter(ben => ben.email);
+
+      setBeneficiaries(allBeneficiaries);
+    } catch (error) {
+      console.error('Error loading beneficiaries:', error);
+      setError('Error loading beneficiaries');
+    }
+  };
+
+  const sendEmailToBeneficiary = async (beneficiary, fileUrl) => {
+    try {
+      const templateParams = {
+        to_email: beneficiary.email,
+        to_name: beneficiary.fullName,
+        file_url: fileUrl,
+        access_password: beneficiary.password,
+        relationship: beneficiary.relationship,
+        type: beneficiary.type,
+        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      };
+
+      const response = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams
+      );
+
+      console.log('Email sent successfully:', response);
+      return true;
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      return false;
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      setLoading(true);
+      setError('');
+  
+      if (!selectedFile) {
+        throw new Error('Please upload your will document');
+      }
+  
+      if (beneficiaries.length === 0) {
+        throw new Error('No beneficiaries with email addresses found');
+      }
+  
+      // Convert PDF to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(selectedFile);
+      
+      reader.onload = async () => {
+        const base64PDF = reader.result.split(',')[1]; // Remove data:application/pdf;base64,
+  
+        // For each beneficiary
+        for (const beneficiary of beneficiaries) {
+          const templateParams = {
+            to_email: beneficiary.email,
+            to_name: beneficiary.fullName,
+            access_password: beneficiary.password,
+            relationship: beneficiary.relationship,
+            type: beneficiary.type,
+            expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+            pdf_file: base64PDF,
+            file_name: selectedFile.name
+          };
+  
+          try {
+            await emailjs.send(
+              EMAILJS_SERVICE_ID,
+              EMAILJS_TEMPLATE_ID,
+              templateParams
+            );
+            setSuccess('Will has been sent successfully to all beneficiaries!');
+          } catch (error) {
+            console.error('Failed to send email:', error);
+            setError(`Failed to send email to ${beneficiary.email}`);
+            break;
+          }
+        }
+        
+        setShowModal(false);
+        setSelectedFile(null);
+      };
+  
+      reader.onerror = () => {
+        setError('Error reading PDF file');
+        setLoading(false);
+      };
+  
+    } catch (err) {
+      console.error('Share error:', err);
+      setError(err.message || 'Failed to share will');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setError('');
+    } else {
+      setError('Please select a valid PDF file');
+      setSelectedFile(null);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+      >
+        <Share2 className="w-5 h-5" />
+        Share Will
+      </button>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Share Your Will</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Upload Will Document (PDF)
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
+                <div className="space-y-1 text-center">
+                  <div className="flex text-sm text-gray-600">
+                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                      <span>Upload a file</span>
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept="application/pdf"
+                        onChange={handleFileSelect}
+                      />
+                    </label>
+                  </div>
+                  {selectedFile && (
+                    <p className="text-sm text-gray-500">
+                      Selected: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Beneficiaries</h3>
+              {beneficiaries.length === 0 ? (
+                <p className="text-gray-500">No beneficiaries with email addresses found.</p>
+              ) : (
+                <div className="space-y-4">
+                  {beneficiaries.map((ben, index) => (
+                    <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{ben.fullName}</p>
+                          <p className="text-sm text-gray-600">{ben.email}</p>
+                          <p className="text-sm text-gray-600">{ben.type} - {ben.relationship}</p>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Access Password: {ben.password}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Important Notes:</h4>
+              <ul className="space-y-2 text-sm text-blue-700">
+                <li className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Each beneficiary will receive their unique password
+                </li>
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email notifications will be sent automatically
+                </li>
+                <li className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Links expire after 30 days
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Your approval required before access is granted
+                </li>
+              </ul>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg">
+                {error}
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 p-4 bg-green-50 text-green-700 rounded-lg">
+                {success}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={loading || !selectedFile || beneficiaries.length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Share Will'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { Share2, Lock, Mail, Clock, CheckCircle, Upload, AlertCircle, X } from 'lucide-react';
+import emailjs from '@emailjs/browser';
+import pako from 'pako';
+
+const EMAILJS_SERVICE_ID = 'service_0r2vqrz';
+const EMAILJS_TEMPLATE_ID = 'template_i7h45vh';
+const EMAILJS_PUBLIC_KEY = '5FJ0awXterm7vPfMT';
+const MAX_CHUNK_SIZE = 45000; // Keep below EmailJS 50KB limit
+
+export default function ShareWill() {
+  const [showModal, setShowModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [sendingProgress, setSendingProgress] = useState({
+    current: 0,
+    total: 0,
+    sent: []
+  });
+
+  useEffect(() => {
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+  }, []);
+
+  useEffect(() => {
+    if (showModal) {
+      loadBeneficiaries();
+    }
+  }, [showModal]);
+
+  const loadBeneficiaries = () => {
+    try {
+      const userEmail = localStorage.getItem('userEmail') || 'guest';
+      const formKey = `willForm_${userEmail}`;
+      const willData = JSON.parse(localStorage.getItem(formKey) || '{}');
+      console.log('Loading will data:', willData);
+
+      // Process children and additional beneficiaries
+      const children = Array.isArray(willData.children) ? willData.children : [];
+      const additional = Array.isArray(willData.additionalBeneficiaries) 
+        ? willData.additionalBeneficiaries 
+        : [];
+
+      // Create processed beneficiaries array
+      const processed = [];
+      
+      // Process children
+      children.forEach(child => {
+        if (child.email && child.email.includes('@')) {
+          processed.push({
+            email: child.email.trim().toLowerCase(),
+            fullName: child.fullName || child.name || '',
+            type: 'Child',
+            relationship: child.relationship || 'Child',
+            password: Math.random().toString(36).slice(-8)
+          });
+        }
+      });
+
+      // Process additional beneficiaries
+      additional.forEach(ben => {
+        if (ben.email && ben.email.includes('@')) {
+          processed.push({
+            email: ben.email.trim().toLowerCase(),
+            fullName: ben.fullName || ben.name || '',
+            type: ben.type || 'Individual',
+            relationship: ben.relationship || 'Beneficiary',
+            password: Math.random().toString(36).slice(-8)
+          });
+        }
+      });
+
+      // Remove duplicates
+      const uniqueBeneficiaries = processed.reduce((acc, current) => {
+        const exists = acc.find(item => item.email === current.email);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+      console.log('Processed beneficiaries:', uniqueBeneficiaries);
+      setBeneficiaries(uniqueBeneficiaries);
+
+    } catch (error) {
+      console.error('Error loading beneficiaries:', error);
+      setError('Error loading beneficiaries');
+    }
+  };
+
+  const compressData = async (data) => {
+    try {
+      const binaryData = atob(data.split(',')[1]);
+      const bytes = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        bytes[i] = binaryData.charCodeAt(i);
+      }
+      const compressed = pako.deflate(bytes);
+      return btoa(String.fromCharCode.apply(null, compressed));
+    } catch (error) {
+      console.error('Compression error:', error);
+      throw new Error('Failed to compress file');
+    }
+  };
+
+  const splitIntoChunks = (data) => {
+    const chunks = [];
+    for (let i = 0; i < data.length; i += MAX_CHUNK_SIZE) {
+      chunks.push(data.slice(i, i + MAX_CHUNK_SIZE));
+    }
+    return chunks;
+  };
+
+  const sendEmailToBeneficiary = async (beneficiary, pdfData) => {
+    try {
+      console.log(`Preparing to send email to ${beneficiary.email}`);
+
+      const compressedData = await compressData(pdfData);
+      console.log('Data compressed successfully');
+
+      const chunks = splitIntoChunks(compressedData);
+      console.log(`File split into ${chunks.length} chunks`);
+
+      // Send first chunk with complete email
+      const mainParams = {
+        to_email: beneficiary.email,
+        to_name: beneficiary.fullName,
+        access_password: beneficiary.password,
+        relationship: beneficiary.relationship,
+        type: beneficiary.type,
+        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        pdf_data: chunks[0],
+        total_chunks: chunks.length,
+        chunk_index: 1,
+        file_name: selectedFile.name
+      };
+
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, mainParams);
+
+      // Send remaining chunks
+      for (let i = 1; i < chunks.length; i++) {
+        const chunkParams = {
+          to_email: beneficiary.email,
+          to_name: beneficiary.fullName,
+          pdf_data: chunks[i],
+          chunk_index: i + 1,
+          total_chunks: chunks.length,
+          file_name: selectedFile.name
+        };
+
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, chunkParams);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      return { success: true, email: beneficiary.email };
+    } catch (error) {
+      console.error(`Failed to send email to ${beneficiary.email}:`, error);
+      return { success: false, email: beneficiary.email, error };
+    }
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setError('');
+    } else {
+      setError('Please select a valid PDF file');
+      setSelectedFile(null);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('');
+
+      if (!selectedFile) {
+        throw new Error('Please upload your will document');
+      }
+
+      if (beneficiaries.length === 0) {
+        throw new Error('No beneficiaries with email addresses found');
+      }
+
+      setSendingProgress({
+        current: 0,
+        total: beneficiaries.length,
+        sent: []
+      });
+
+      const reader = new FileReader();
+      
+      reader.onload = async () => {
+        try {
+          const pdfData = reader.result;
+          const results = [];
+
+          for (let i = 0; i < beneficiaries.length; i++) {
+            const beneficiary = beneficiaries[i];
+            console.log(`Processing beneficiary ${i + 1}/${beneficiaries.length}:`, beneficiary);
+
+            setSendingProgress(prev => ({
+              ...prev,
+              current: i + 1,
+              sent: [...prev.sent, { email: beneficiary.email, status: 'sending' }]
+            }));
+
+            const result = await sendEmailToBeneficiary(beneficiary, pdfData);
+            results.push(result);
+
+            setSendingProgress(prev => ({
+              ...prev,
+              sent: prev.sent.map(item =>
+                item.email === beneficiary.email
+                  ? { ...item, status: result.success ? 'success' : 'failed' }
+                  : item
+              )
+            }));
+
+            // Add delay between beneficiaries
+            if (i < beneficiaries.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+
+          const successful = results.filter(r => r.success);
+          const failed = results.filter(r => !r.success);
+
+          if (successful.length === beneficiaries.length) {
+            setSuccess('Will has been sent successfully to all beneficiaries!');
+            setShowModal(false);
+            setSelectedFile(null);
+          } else if (successful.length > 0) {
+            setSuccess(`Successfully sent to: ${successful.map(r => r.email).join(', ')}`);
+            if (failed.length > 0) {
+              setError(`Failed to send to: ${failed.map(r => r.email).join(', ')}`);
+            }
+          } else {
+            setError('Failed to send the will to any beneficiaries. Please try again.');
+          }
+        } catch (error) {
+          console.error('Error in send process:', error);
+          setError('Error sending emails. Please try again.');
+        }
+      };
+
+      reader.onerror = () => {
+        setError('Error reading PDF file');
+      };
+
+      reader.readAsDataURL(selectedFile);
+
+    } catch (err) {
+      console.error('Share error:', err);
+      setError(err.message || 'Failed to share will');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+      >
+        <Share2 className="w-5 h-5" />
+        Share Will
+      </button>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Share Your Will</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Upload Will Document (PDF)
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
+                <div className="space-y-1 text-center">
+                  <div className="flex text-sm text-gray-600">
+                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                      <span>Upload a file</span>
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept="application/pdf"
+                        onChange={handleFileSelect}
+                      />
+                    </label>
+                  </div>
+                  {selectedFile && (
+                    <p className="text-sm text-gray-500">
+                      Selected: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">
+                Beneficiaries ({beneficiaries.length})
+              </h3>
+              {beneficiaries.length === 0 ? (
+                <p className="text-gray-500">No beneficiaries with email addresses found.</p>
+              ) : (
+                <div className="space-y-4">
+                  {beneficiaries.map((ben, index) => (
+                    <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{ben.fullName}</p>
+                          <p className="text-sm text-gray-600">{ben.email}</p>
+                          <p className="text-sm text-gray-600">{ben.type} - {ben.relationship}</p>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Access Password: {ben.password}
+                        </div>
+                      </div>
+                      {sendingProgress.sent.find(item => item.email === ben.email) && (
+                        <div className={`mt-2 text-sm ${
+                          sendingProgress.sent.find(item => item.email === ben.email)?.status === 'success'
+                            ? 'text-green-600'
+                            : sendingProgress.sent.find(item => item.email === ben.email)?.status === 'failed'
+                            ? 'text-red-600'
+                            : 'text-blue-600'
+                        }`}>
+                          {sendingProgress.sent.find(item => item.email === ben.email)?.status === 'success'
+                            ? '✓ Sent successfully'
+                            : sendingProgress.sent.find(item => item.email === ben.email)?.status === 'failed'
+                            ? '× Failed to send'
+                            : '• Sending...'}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Important Notes:</h4>
+              <ul className="space-y-2 text-sm text-blue-700">
+                <li className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Each beneficiary will receive their unique password
+                </li>
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email notifications will be sent automatically with PDF attachment
+                </li>
+                <li className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Links expire after 30 days
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Your approval required before access is granted
+                </li>
+              </ul>
+            </div>
+
+            {loading && sendingProgress.total > 0 && (
+              <div className="mb-4 p-4 bg-blue-50 text-blue-700 rounded-lg">
+                Sending emails: {sendingProgress.current} of {sendingProgress.total} beneficiaries...
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg">
+                {error}
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 p-4 bg-green-50 text-green-700 rounded-lg">
+                {success}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-4">
+            <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={loading || !selectedFile || beneficiaries.length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {loading 
+                  ? `Sending (${sendingProgress.current}/${sendingProgress.total})...` 
+                  : 'Share Will'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

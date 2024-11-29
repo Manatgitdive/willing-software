@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import ShareWill from './ShareWill';
 import {
   Eye,
   Edit2,
@@ -500,13 +501,8 @@ const Dashboard = () => {
                 <span>Schedule</span>
               </button>
 
-              <button
-                onClick={() => window.open('https://app.pandadoc.com/a/#/dashboard', '_blank')}
-                className="flex items-center gap-1 px-3 py-1.5 text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Share will</span>
-              </button>
+              
+              <ShareWill />
             </div>
           </div>
         ))}

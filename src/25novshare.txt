@@ -1,0 +1,642 @@
+import React, { useState, useEffect } from 'react';
+import { Share2, Lock, Mail, Clock, CheckCircle, Upload, AlertCircle, X } from 'lucide-react';
+import { supabase } from './supabaseClient';
+
+// Simple Alert components
+const Alert = ({ children, variant = 'default' }) => {
+  const baseStyle = "p-4 rounded-lg mb-4";
+  const styles = {
+    default: `${baseStyle} bg-blue-50 text-blue-900`,
+    destructive: `${baseStyle} bg-red-50 text-red-900`
+  };
+  
+  return (
+    <div className={styles[variant]}>
+      {children}
+    </div>
+  );
+};
+
+const AlertDescription = ({ children }) => (
+  <div className="text-sm">{children}</div>
+);
+
+export default function ShareWill() {
+  const [showModal, setShowModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  useEffect(() => {
+    if (showModal) {
+      loadBeneficiaries();
+    }
+  }, [showModal]);
+
+  const loadBeneficiaries = async () => {
+    try {
+      const userEmail = localStorage.getItem('userEmail') || 'guest';
+      const formKey = `willForm_${userEmail}`;
+      const willData = JSON.parse(localStorage.getItem(formKey) || '{}');
+
+      const allBeneficiaries = [
+        ...(willData.children || []).map(child => ({
+          email: child.email,
+          fullName: child.fullName,
+          type: 'Child',
+          relationship: child.relationship,
+          address: child.address,
+          parish: child.parish,
+          password: generatePassword()
+        })),
+        ...(willData.additionalBeneficiaries || []).map(ben => ({
+          email: ben.email,
+          fullName: ben.fullName,
+          type: ben.type,
+          relationship: ben.relationship,
+          address: ben.address,
+          parish: ben.parish,
+          password: generatePassword()
+        })),
+        ...(willData.grandchildren || []).map(gc => ({
+          email: gc.email,
+          fullName: gc.fullName,
+          type: 'Grandchild',
+          relationship: gc.relationship,
+          address: gc.address,
+          parish: gc.parish,
+          password: generatePassword()
+        }))
+      ].filter(ben => ben.email);
+
+      setBeneficiaries(allBeneficiaries);
+    } catch (error) {
+      console.error('Error loading beneficiaries:', error);
+      setError('Error loading beneficiaries');
+    }
+  };
+
+  const generatePassword = () => {
+    return Math.random().toString(36).slice(-8);
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setError('');
+    } else {
+      setError('Please select a valid PDF file');
+      setSelectedFile(null);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      if (!selectedFile) {
+        throw new Error('Please upload your will document');
+      }
+
+      if (beneficiaries.length === 0) {
+        throw new Error('No beneficiaries with email addresses found');
+      }
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+
+      const timestamp = new Date().getTime();
+      const filePath = `wills/${user.id}/${timestamp}-${selectedFile.name}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('wills')
+        .upload(filePath, selectedFile, {
+          cacheControl: '3600',
+          upsert: false,
+          onUploadProgress: (progress) => {
+            const percent = (progress.loaded / progress.total) * 100;
+            setUploadProgress(Math.round(percent));
+          },
+        });
+
+      if (uploadError) throw uploadError;
+
+      const sharePromises = beneficiaries.map(async (ben) => {
+        const { error: shareError } = await supabase
+          .from('will_shares')
+          .insert({
+            will_path: filePath,
+            beneficiary_email: ben.email,
+            beneficiary_name: ben.fullName,
+            access_password: ben.password,
+            expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            share_date: new Date().toISOString(),
+            approval_status: 'pending',
+            owner_id: user.id
+          });
+
+        if (shareError) throw shareError;
+
+        // Log email details (replace with actual email sending)
+        console.log(`Would send email to ${ben.email} with password ${ben.password}`);
+      });
+
+      await Promise.all(sharePromises);
+
+      setSuccess('Will has been shared successfully. Beneficiaries will receive email notifications.');
+      setShowModal(false);
+      
+      setSelectedFile(null);
+      setUploadProgress(0);
+    } catch (err) {
+      console.error('Share error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+      >
+        <Share2 className="w-5 h-5" />
+        Share Will
+      </button>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Share Your Will</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Upload Will Document (PDF)
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
+                <div className="space-y-1 text-center">
+                  <div className="flex text-sm text-gray-600">
+                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                      <span>Upload a file</span>
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept="application/pdf"
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                  </div>
+                  {selectedFile && (
+                    <p className="text-sm text-gray-500">
+                      Selected: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Beneficiaries</h3>
+              {beneficiaries.length === 0 ? (
+                <p className="text-gray-500">No beneficiaries with email addresses found.</p>
+              ) : (
+                <div className="space-y-4">
+                  {beneficiaries.map((ben, index) => (
+                    <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{ben.fullName}</p>
+                          <p className="text-sm text-gray-600">{ben.email}</p>
+                          <p className="text-sm text-gray-600">{ben.type} - {ben.relationship}</p>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Access Password: {ben.password}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Important Notes:</h4>
+              <ul className="space-y-2 text-sm text-blue-700">
+                <li className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Each beneficiary will receive their unique password
+                </li>
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email notifications will be sent automatically
+                </li>
+                <li className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Links expire after 30 days
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Your approval required before access is granted
+                </li>
+              </ul>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert>
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="mb-4">
+                <div className="h-2 bg-gray-200 rounded-full">
+                  <div 
+                    className="h-2 bg-blue-500 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-sm text-gray-500 text-center mt-2">
+                  Uploading: {uploadProgress}%
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={loading || !selectedFile || beneficiaries.length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {loading ? 'Sharing...' : 'Share Will'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { Share2, Lock, Mail, Clock, CheckCircle, Upload, AlertCircle, X } from 'lucide-react';
+import { supabase } from './supabaseClient';
+
+// Simple Alert components
+const Alert = ({ children, variant = 'default' }) => {
+  const baseStyle = "p-4 rounded-lg mb-4";
+  const styles = {
+    default: `${baseStyle} bg-blue-50 text-blue-900`,
+    destructive: `${baseStyle} bg-red-50 text-red-900`
+  };
+  
+  return (
+    <div className={styles[variant]}>
+      {children}
+    </div>
+  );
+};
+
+const AlertDescription = ({ children }) => (
+  <div className="text-sm">{children}</div>
+);
+
+export default function ShareWill() {
+  const [showModal, setShowModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  useEffect(() => {
+    if (showModal) {
+      loadBeneficiaries();
+    }
+  }, [showModal]);
+
+  const loadBeneficiaries = async () => {
+    try {
+      const userEmail = localStorage.getItem('userEmail') || 'guest';
+      const formKey = `willForm_${userEmail}`;
+      const willData = JSON.parse(localStorage.getItem(formKey) || '{}');
+
+      const allBeneficiaries = [
+        ...(willData.children || []).map(child => ({
+          email: child.email,
+          fullName: child.fullName,
+          type: 'Child',
+          relationship: child.relationship,
+          address: child.address,
+          parish: child.parish,
+          password: generatePassword()
+        })),
+        ...(willData.additionalBeneficiaries || []).map(ben => ({
+          email: ben.email,
+          fullName: ben.fullName,
+          type: ben.type,
+          relationship: ben.relationship,
+          address: ben.address,
+          parish: ben.parish,
+          password: generatePassword()
+        })),
+        ...(willData.grandchildren || []).map(gc => ({
+          email: gc.email,
+          fullName: gc.fullName,
+          type: 'Grandchild',
+          relationship: gc.relationship,
+          address: gc.address,
+          parish: gc.parish,
+          password: generatePassword()
+        }))
+      ].filter(ben => ben.email);
+
+      setBeneficiaries(allBeneficiaries);
+    } catch (error) {
+      console.error('Error loading beneficiaries:', error);
+      setError('Error loading beneficiaries');
+    }
+  };
+
+  const generatePassword = () => {
+    return Math.random().toString(36).slice(-8);
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setError('');
+    } else {
+      setError('Please select a valid PDF file');
+      setSelectedFile(null);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      if (!selectedFile) {
+        throw new Error('Please upload your will document');
+      }
+  
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Auth error:', userError);
+        throw new Error('Authentication error');
+      }
+  
+      // Upload will document
+      const timestamp = new Date().getTime();
+      const filePath = `${user.id}/${timestamp}-${selectedFile.name}`;
+      
+      // Upload to the 'wills' bucket
+      const { data: fileData, error: uploadError } = await supabase.storage
+        .from('wills')
+        .upload(filePath, selectedFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+  
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error('Failed to upload file');
+      }
+  
+      // Get the signed URL
+      const { data: { signedUrl }, error: urlError } = await supabase.storage
+        .from('wills')
+        .createSignedUrl(filePath, 30 * 24 * 60 * 60); // 30 days
+  
+      if (urlError) {
+        console.error('URL error:', urlError);
+        throw new Error('Failed to generate file URL');
+      }
+  
+      // Create share record
+      const { error: shareError } = await supabase
+        .from('will_shares')
+        .insert({
+          will_path: filePath,
+          file_url: signedUrl,
+          beneficiary_email: beneficiaries[0].email,
+          beneficiary_name: beneficiaries[0].fullName,
+          access_password: beneficiaries[0].password,
+          expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          owner_id: user.id
+        });
+  
+      if (shareError) {
+        console.error('Share error:', shareError);
+        throw new Error('Failed to create share record');
+      }
+  
+      // Success!
+      setSuccess('Will has been shared successfully!');
+      setShowModal(false);
+      setSelectedFile(null);
+      
+    } catch (err) {
+      console.error('Share error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+ 
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+      >
+        <Share2 className="w-5 h-5" />
+        Share Will
+      </button>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Share Your Will</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Upload Will Document (PDF)
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
+                <div className="space-y-1 text-center">
+                  <div className="flex text-sm text-gray-600">
+                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                      <span>Upload a file</span>
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept="application/pdf"
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                  </div>
+                  {selectedFile && (
+                    <p className="text-sm text-gray-500">
+                      Selected: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Beneficiaries</h3>
+              {beneficiaries.length === 0 ? (
+                <p className="text-gray-500">No beneficiaries with email addresses found.</p>
+              ) : (
+                <div className="space-y-4">
+                  {beneficiaries.map((ben, index) => (
+                    <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{ben.fullName}</p>
+                          <p className="text-sm text-gray-600">{ben.email}</p>
+                          <p className="text-sm text-gray-600">{ben.type} - {ben.relationship}</p>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Access Password: {ben.password}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Important Notes:</h4>
+              <ul className="space-y-2 text-sm text-blue-700">
+                <li className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Each beneficiary will receive their unique password
+                </li>
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email notifications will be sent automatically
+                </li>
+                <li className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Links expire after 30 days
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Your approval required before access is granted
+                </li>
+              </ul>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert>
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="mb-4">
+                <div className="h-2 bg-gray-200 rounded-full">
+                  <div 
+                    className="h-2 bg-blue-500 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-sm text-gray-500 text-center mt-2">
+                  Uploading: {uploadProgress}%
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={loading || !selectedFile || beneficiaries.length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {loading ? 'Sharing...' : 'Share Will'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
