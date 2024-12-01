@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
-
 const SUPPORTED_VIDEO_FORMATS = [
   'video/mp4',
   'video/webm',
@@ -34,7 +33,6 @@ const SUPPORTED_VIDEO_FORMATS = [
   'video/x-matroska',
   'video/3gpp'
 ];
-
 const SUPPORTED_IMAGE_FORMATS = ['image/jpeg', 'image/png', 'image/gif'];
 const SUPPORTED_DOC_FORMATS = [
   'application/pdf',
@@ -49,17 +47,10 @@ const Dashboard = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [user, setUser] = useState(null);
+  const [showWillBox, setShowWillBox] = useState(() => {
+    return localStorage.getItem('willCreated') === 'true';
+  });
 
-  const willsList = [
-    {
-      id: 1,
-      name: "My Will",
-      status: "Draft",
-      created: new Date().toLocaleDateString()
-    }
-  ];
-
-  // Check for Supabase session
   useEffect(() => {
     const getSession = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
@@ -80,9 +71,7 @@ const Dashboard = () => {
       setUser(session.user);
     });
 
-    return () => {
-      subscription?.unsubscribe();
-    };
+    return () => subscription?.unsubscribe();
   }, [navigate]);
 
   // Load files when user is authenticated
@@ -138,11 +127,19 @@ const Dashboard = () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      localStorage.removeItem('willCreated');
+      setShowWillBox(false);
       navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error.message);
       setError('Error signing out');
     }
+  };
+
+  const handleCreateWill = () => {
+    setShowWillBox(true);
+    localStorage.setItem('willCreated', 'true');
+    navigate('/form'); // Navigate to form while keeping the box visible
   };
 
   const handleFileChange = async (event) => {
@@ -416,6 +413,7 @@ const Dashboard = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Your Wills Dashboard</h1>
@@ -425,21 +423,15 @@ const Dashboard = () => {
           )}
         </div>
         <div className="flex gap-4">
-          <button
-            onClick={() => window.open('https://app.pandadoc.com/a/#/dashboard', '_blank')}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            <FileText className="w-5 h-5" />
-            Share Will
-          </button>
-
-          <button
-            onClick={() => { location.href="/form" }}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-5 h-5" />
-            Create New Will
-          </button>
+          {!showWillBox && (
+            <button
+              onClick={handleCreateWill}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-5 h-5" />
+              Create New Will
+            </button>
+          )}
 
           <button
             onClick={handleSignOut}
@@ -451,18 +443,17 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {willsList.map((will) => (
-          <div key={will.id} className="bg-white rounded-lg shadow-md p-6 space-y-4">
+      {/* Will Box - Shows after creating will */}
+      {showWillBox && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{will.name}</h3>
-                <p className="text-sm text-gray-500">Created: {will.created}</p>
+                <h3 className="text-lg font-semibold text-gray-900">My Will</h3>
+                <p className="text-sm text-gray-500">Created: {new Date().toLocaleDateString()}</p>
               </div>
-              <span className={`px-2 py-1 rounded-full text-xs ${
-                will.status === 'Final' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-              }`}>
-                {will.status}
+              <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                Draft
               </span>
             </div>
 
@@ -501,18 +492,28 @@ const Dashboard = () => {
                 <span>Schedule</span>
               </button>
 
-              
               <ShareWill />
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">Uploaded Files</h2>
-        <DocumentPreview />
-      </div>
+      {/* Empty state when no will is created */}
+      {!showWillBox && (
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-600">Click "Create New Will" to get started</p>
+        </div>
+      )}
 
+      {/* File Upload Section */}
+      {showWillBox && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Uploaded Files</h2>
+          <DocumentPreview />
+        </div>
+      )}
+
+      {/* Upload Modal */}
       {showUploadModal && <UploadModal />}
     </div>
   );
