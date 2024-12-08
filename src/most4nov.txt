@@ -88,7 +88,7 @@ export default function ShareWill() {
       formData.append('file', file);
       
       const response = await fetch(
-        `https://e6a2-119-82-104-186.ngrok-free.app/upload-document`,
+        `https://564b-1-38-105-83.ngrok-free.app/vendor/api/upload-document/manat`,
         {
           method: 'POST',
           body: formData,
