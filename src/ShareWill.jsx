@@ -155,44 +155,44 @@ export default function ShareWill() {
     try {
       console.log(`Sending email to ${beneficiary.email}`);
       
-      // Create request ID for tracking
-      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+      // Generate a token/ID for this share
+      const shareId = `share_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Create initial access request
-      const request = {
-        id: requestId,
+      // Store share information without creating approval request
+      const shareInfo = {
+        id: shareId,
         created_at: new Date().toISOString(),
         requester_email: beneficiary.email,
         requester_name: beneficiary.fullName,
-        file_url: uploadResponse.cloudFrontUrl, // Original document URL
+        file_url: uploadResponse.cloudFrontUrl,
         file_name: selectedFile.name,
-        status: 'pending',
+        file_type: selectedFile.type,
         relationship: beneficiary.relationship,
         password: beneficiary.password,
-        owner_email: localStorage.getItem('userEmail')
+        owner_email: localStorage.getItem('userEmail'),
+        status: 'shared' // Initial status before request
       };
   
-      // Store request in localStorage
-      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
-      approvalRequests.push(request);
-      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
+      // Store share info in localStorage
+      const shares = JSON.parse(localStorage.getItem('shareInfo') || '[]');
+      shares.push(shareInfo);
+      localStorage.setItem('shareInfo', JSON.stringify(shares));
   
-      // Create secure access URL with request ID
-      const accessUrl = `${window.location.origin}/validate-access?request=${requestId}`;
-    
-    const emailParams = {
-      enduser_email: beneficiary.email,
-      to_email: beneficiary.email,
-      to_name: beneficiary.fullName,
-      pdf_link: accessUrl, // Using the new route URL
-      access_password: beneficiary.password,
-      relationship: beneficiary.relationship,
-      type: beneficiary.type,
-      sender_email: localStorage.getItem('userEmail'),
-      expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
-    };
-
-
+      // Create access URL that will trigger approval request when clicked
+      const accessUrl = `${window.location.origin}/validate-access?share=${shareId}`;
+      
+      const emailParams = {
+        enduser_email: beneficiary.email,
+        to_email: beneficiary.email,
+        to_name: beneficiary.fullName,
+        pdf_link: accessUrl,
+        access_password: beneficiary.password,
+        relationship: beneficiary.relationship,
+        type: beneficiary.type,
+        sender_email: localStorage.getItem('userEmail'),
+        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      };
+  
       const result = await emailjs.send(
         EMAILJS_SERVICE_ID,
         EMAILJS_TEMPLATE_ID,
@@ -206,9 +206,6 @@ export default function ShareWill() {
       return { success: false, email: beneficiary.email, error };
     }
   };
-
-  
-
 
 
 
