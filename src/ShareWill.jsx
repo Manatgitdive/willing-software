@@ -153,34 +153,17 @@ export default function ShareWill() {
 
   const sendEmailToBeneficiary = async (beneficiary, uploadResponse) => {
     try {
-      console.log(`Sending email to ${beneficiary.email}`);
+      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Generate a token/ID for this share
-      const shareId = `share_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Store share information without creating approval request
-      const shareInfo = {
-        id: shareId,
-        created_at: new Date().toISOString(),
-        requester_email: beneficiary.email,
-        requester_name: beneficiary.fullName,
-        file_url: uploadResponse.cloudFrontUrl,
-        file_name: selectedFile.name,
-        file_type: selectedFile.type,
-        relationship: beneficiary.relationship,
-        password: beneficiary.password,
-        owner_email: localStorage.getItem('userEmail'),
-        status: 'shared' // Initial status before request
-      };
+      // Include all necessary data in the URL with proper encoding
+      const accessUrl = `${window.location.origin}/validate-access?` + 
+        `request=${requestId}&` + 
+        `url=${encodeURIComponent(uploadResponse.cloudFrontUrl)}&` + 
+        `email=${encodeURIComponent(beneficiary.email)}&` +
+        `fileName=${encodeURIComponent(selectedFile.name)}&` +
+        `password=${encodeURIComponent(beneficiary.password)}`;
   
-      // Store share info in localStorage
-      const shares = JSON.parse(localStorage.getItem('shareInfo') || '[]');
-      shares.push(shareInfo);
-      localStorage.setItem('shareInfo', JSON.stringify(shares));
-  
-      // Create access URL that will trigger approval request when clicked
-      const accessUrl = `${window.location.origin}/validate-access?share=${shareId}`;
-      
+      // Create email parameters
       const emailParams = {
         enduser_email: beneficiary.email,
         to_email: beneficiary.email,
@@ -193,6 +176,25 @@ export default function ShareWill() {
         expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
       };
   
+      // Save request on sender's device
+      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
+      approvalRequests.push({
+        id: requestId,
+        created_at: new Date().toISOString(),
+        requester_email: beneficiary.email,
+        requester_name: beneficiary.fullName,
+        file_url: uploadResponse.cloudFrontUrl,
+        file_name: selectedFile.name,
+        file_type: selectedFile.type,
+        status: 'pending',
+        password: beneficiary.password,
+        relationship: beneficiary.relationship,
+        type: beneficiary.type,
+        owner_email: localStorage.getItem('userEmail')
+      });
+      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
+  
+      // Send email
       const result = await emailjs.send(
         EMAILJS_SERVICE_ID,
         EMAILJS_TEMPLATE_ID,
@@ -206,7 +208,6 @@ export default function ShareWill() {
       return { success: false, email: beneficiary.email, error };
     }
   };
-
 
 
 

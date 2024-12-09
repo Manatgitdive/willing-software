@@ -17,41 +17,48 @@ const ValidateAccess = () => {
   }, []);
 
   const handleAccess = () => {
-    const shareId = searchParams.get('share');
-    
-    if (!shareId) {
-      setStatus('error');
-      setMessage('Invalid access link');
-      return;
-    }
+    try {
+      // Get all required parameters from URL
+      const requestId = searchParams.get('request');
+      const fileUrl = searchParams.get('url');
+      const requesterEmail = searchParams.get('email');
+      const fileName = searchParams.get('fileName');
+      
+      if (!requestId || !fileUrl || !requesterEmail) {
+        setStatus('error');
+        setMessage('Invalid access link. Missing required parameters.');
+        return;
+      }
 
-    // Get share info
-    const shares = JSON.parse(localStorage.getItem('shareInfo') || '[]');
-    const shareInfo = shares.find(s => s.id === shareId);
+      // Check for existing request
+      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
+      let existingRequest = approvalRequests.find(r => r.id === requestId);
 
-    if (!shareInfo) {
-      setStatus('error');
-      setMessage('Share not found or has expired');
-      return;
-    }
+      if (!existingRequest) {
+        // Create new request with URL parameters
+        const newRequest = {
+          id: requestId,
+          created_at: new Date().toISOString(),
+          requester_email: requesterEmail,
+          file_url: fileUrl,
+          file_name: fileName || 'Document',
+          status: 'pending',
+          password: searchParams.get('password')
+        };
 
-    setDocumentInfo(shareInfo);
+        approvalRequests.push(newRequest);
+        localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
+        existingRequest = newRequest;
+      }
 
-    // Check if approval request already exists
-    const existingRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
-    const existingRequest = existingRequests.find(
-      r => r.requester_email === shareInfo.requester_email && 
-           r.file_url === shareInfo.file_url
-    );
+      setDocumentInfo(existingRequest);
 
-    if (existingRequest) {
-      // Show status based on existing request
+      // Handle request status
       switch (existingRequest.status) {
         case 'approved':
           setStatus('approved');
           setMessage('Access approved! Please enter your password.');
           setShowPasswordInput(true);
-          setDocumentInfo(existingRequest);
           break;
         case 'rejected':
           setStatus('rejected');
@@ -65,21 +72,10 @@ const ValidateAccess = () => {
           setStatus('error');
           setMessage('Invalid request status');
       }
-    } else {
-      // Create new approval request
-      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
-      const newRequest = {
-        ...shareInfo,
-        id: requestId,
-        created_at: new Date().toISOString(),
-        status: 'pending'
-      };
-
-      existingRequests.push(newRequest);
-      localStorage.setItem('approvalRequests', JSON.stringify(existingRequests));
-
-      setStatus('pending');
-      setMessage('Your access request has been created and is pending approval.');
+    } catch (error) {
+      console.error('Error handling access:', error);
+      setStatus('error');
+      setMessage('Error checking access status. Please try again.');
     }
   };
 
@@ -93,13 +89,11 @@ const ValidateAccess = () => {
     }
 
     if (password === documentInfo.password) {
-      // Correct password - show success message and redirect
       setMessage('Password correct! Redirecting to document...');
       setTimeout(() => {
         window.location.href = documentInfo.file_url;
       }, 1500);
     } else {
-      // Wrong password
       setError('Incorrect password. Please try again.');
       setPassword('');
     }
@@ -208,13 +202,15 @@ const ValidateAccess = () => {
 
         {renderContent()}
 
-        {/* Footer with contact info */}
         {documentInfo && status !== 'error' && (
           <div className="mt-6 text-sm text-gray-600 text-center">
             <p>
               Need help? Contact{' '}
-              <a href={`mailto:${documentInfo.owner_email}`} className="text-blue-600 hover:text-blue-800">
-                {documentInfo.owner_email}
+              <a 
+                href={`mailto:${documentInfo.owner_email}`}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                document owner
               </a>
             </p>
           </div>
