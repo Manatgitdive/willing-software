@@ -1,3 +1,4 @@
+// src/AppRoutes.jsx
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import WillGenerator from './WillGenerator';
@@ -6,11 +7,14 @@ import Login from './Login';
 import SubscriptionChoice from './SubscriptionChoice';
 import Dashboard from './Dashboard';
 import EditWill from './EditWill';
+import ValidateAccess from './ValidateAccess';
 
 const AppRoutes = ({ user }) => {
   return (
     <Routes>
-      {/* Public routes */}
+      {/* Public routes - including validate access */}
+      <Route path="/validate-access" element={<ValidateAccess />} />
+      
       <Route
         path="/login"
         element={user ? <Navigate to="/subscription" /> : <Login />}
@@ -20,34 +24,31 @@ const AppRoutes = ({ user }) => {
         element={user ? <Navigate to="/subscription" /> : <Signup />}
       />
 
-<Route path="/edit-will/:id" element={<EditWill />} />
-
       {/* Protected routes */}
+      <Route
+        path="/edit-will/:id"
+        element={user ? <EditWill /> : <Navigate to="/login" />}
+      />
       <Route
         path="/subscription"
         element={user ? <SubscriptionChoice /> : <Navigate to="/login" />}
       />
-
-      {/* Will Generator Form */}
       <Route
         path="/form"
         element={user ? <WillGenerator /> : <Navigate to="/login" />}
       />
-
-      {/* Dashboard */}
       <Route
         path="/dashboard"
         element={user ? <Dashboard /> : <Navigate to="/login" />}
       />
 
-      {/* Default redirect */}
+      {/* Default redirects */}
       <Route
         path="/"
         element={
           <Navigate to={user ? "/subscription" : "/login"} replace />
         }
       />
-
       <Route
         path="*"
         element={
@@ -55,7 +56,6 @@ const AppRoutes = ({ user }) => {
         }
       />
     </Routes>
-
   );
 };
 

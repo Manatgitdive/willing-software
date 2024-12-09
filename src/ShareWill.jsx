@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Lock, Mail, Clock, CheckCircle, Upload, AlertCircle, X, Trash2 } from 'lucide-react';
 import emailjs from '@emailjs/browser';
   
-const EMAILJS_SERVICE_ID = 'service_8sad7ip';
-const EMAILJS_TEMPLATE_ID = 'template_dqr4l69';
-const EMAILJS_PUBLIC_KEY = 's5Lva0Ofu7vpYDsBz';
+const EMAILJS_SERVICE_ID = 'service_s8qmko3';
+const EMAILJS_TEMPLATE_ID = 'template_ibd242i';
+const EMAILJS_PUBLIC_KEY = '2UzhaCo_sNXTplzST';
 const API_URL = 'http://localhost:8080';
 
 export default function ShareWill() {
@@ -109,27 +109,96 @@ export default function ShareWill() {
     }
   };
 
+  const createApprovalRequest = async (beneficiary, uploadResponse) => {
+    try {
+      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+      const request = {
+        id: requestId,
+        created_at: new Date().toISOString(),
+        requester_email: beneficiary.email,
+        requester_name: beneficiary.fullName,
+        file_url: uploadResponse.cloudFrontUrl,
+        file_name: selectedFile.name,
+        status: 'pending',
+        relationship: beneficiary.relationship,
+        type: beneficiary.type,
+        password: beneficiary.password,
+        owner_email: localStorage.getItem('userEmail')
+      };
+
+      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
+      approvalRequests.push(request);
+      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
+
+      return request;
+    } catch (error) {
+      console.error('Error creating approval request:', error);
+      throw error;
+    }
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const sendEmailToBeneficiary = async (beneficiary, uploadResponse) => {
     try {
       console.log(`Sending email to ${beneficiary.email}`);
       
-      const cloudFrontUrl = uploadResponse.cloudFrontUrl;
+      // Create request ID for tracking
+      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
       
-      const emailParams = {
-        enduser_email: beneficiary.email,
-        to_email: beneficiary.email,
-        to_name: beneficiary.fullName,
-        pdf_link: cloudFrontUrl,
-        access_password: beneficiary.password,
+      // Create initial access request
+      const request = {
+        id: requestId,
+        created_at: new Date().toISOString(),
+        requester_email: beneficiary.email,
+        requester_name: beneficiary.fullName,
+        file_url: uploadResponse.cloudFrontUrl, // Original document URL
+        file_name: selectedFile.name,
+        status: 'pending',
         relationship: beneficiary.relationship,
-        type: beneficiary.type,
-        sender_email: localStorage.getItem('userEmail') || 'sender@example.com',
-        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
+        password: beneficiary.password,
+        owner_email: localStorage.getItem('userEmail')
       };
+  
+      // Store request in localStorage
+      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
+      approvalRequests.push(request);
+      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
+  
+      // Create secure access URL with request ID
+      const accessUrl = `${window.location.origin}/validate-access?request=${requestId}`;
+    
+    const emailParams = {
+      enduser_email: beneficiary.email,
+      to_email: beneficiary.email,
+      to_name: beneficiary.fullName,
+      pdf_link: accessUrl, // Using the new route URL
+      access_password: beneficiary.password,
+      relationship: beneficiary.relationship,
+      type: beneficiary.type,
+      sender_email: localStorage.getItem('userEmail'),
+      expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
+    };
 
-      console.log('Email params:', emailParams);
 
-      const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
+      const result = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        emailParams
+      );
+  
       console.log('Email sent successfully:', result);
       return { success: true, email: beneficiary.email };
     } catch (error) {
@@ -137,6 +206,14 @@ export default function ShareWill() {
       return { success: false, email: beneficiary.email, error };
     }
   };
+
+  
+
+
+
+
+
+
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -208,7 +285,7 @@ export default function ShareWill() {
       const failed = results.filter(r => !r.success);
 
       if (successful.length === beneficiaries.length) {
-        setSuccess('Will has been sent successfully to all beneficiaries!');
+        setSuccess('Approval requests created and notifications sent to all beneficiaries!');
         setShowModal(false);
         setSelectedFile(null);
       } else if (successful.length > 0) {
@@ -227,6 +304,7 @@ export default function ShareWill() {
     }
   };
 
+  // Return your existing JSX unchanged
   return (
     <>
       <button
@@ -314,10 +392,10 @@ export default function ShareWill() {
                             : 'text-blue-600'
                         }`}>
                           {sendingProgress.sent.find(item => item.email === ben.email)?.status === 'success'
-                            ? '✓ Sent successfully'
+                            ? '✓ Approval request created'
                             : sendingProgress.sent.find(item => item.email === ben.email)?.status === 'failed'
-                            ? '× Failed to send'
-                            : '• Sending...'}
+                            ? '× Failed to create request'
+                            : '• Creating request...'}
                         </div>
                       )}
                     </div>
@@ -350,10 +428,9 @@ export default function ShareWill() {
 
             {loading && sendingProgress.total > 0 && (
               <div className="mb-4 p-4 bg-blue-50 text-blue-700 rounded-lg">
-                Sending emails: {sendingProgress.current} of {sendingProgress.total} beneficiaries...
+                Creating requests: {sendingProgress.current} of {sendingProgress.total} beneficiaries...
               </div>
             )}
-
             {error && (
               <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg">
                 {error}
@@ -379,7 +456,7 @@ export default function ShareWill() {
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
               >
                 {loading 
-                  ? `Sending (${sendingProgress.current}/${sendingProgress.total})...` 
+                  ? `Sharing (${sendingProgress.current}/${sendingProgress.total})...` 
                   : 'Share Will'}
               </button>
             </div>

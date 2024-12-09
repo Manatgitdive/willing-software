@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import ShareWill from './ShareWill';
+import emailjs from '@emailjs/browser';
 import {
   Eye,
   Edit2,
@@ -18,20 +19,26 @@ import {
   Download,
   Video,
   Image as ImageIcon,
-  LogOut
+  LogOut,
+  CheckCircle,
+  XCircle,
+  Bell
 } from 'lucide-react';
+
+// Constants
+const EMAILJS_CONFIG = {
+  SERVICE_ID: 'service_s8qmko3',
+  TEMPLATE_ID: 'template_ibd242i',
+  APPROVAL_TEMPLATE_ID: 'template_approval',
+  PUBLIC_KEY: '2UzhaCo_sNXTplzST'
+};
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
 const SUPPORTED_VIDEO_FORMATS = [
   'video/mp4',
   'video/webm',
   'video/ogg',
-  'video/quicktime',
-  'video/x-mov',
-  'video/mpeg',
-  'video/x-msvideo',
-  'video/x-matroska',
-  'video/3gpp'
+  'video/quicktime'
 ];
 const SUPPORTED_IMAGE_FORMATS = ['image/jpeg', 'image/png', 'image/gif'];
 const SUPPORTED_DOC_FORMATS = [
@@ -43,15 +50,20 @@ const SUPPORTED_DOC_FORMATS = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showApprovalsModal, setShowApprovalsModal] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [user, setUser] = useState(null);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
   const [showWillBox, setShowWillBox] = useState(() => {
     return localStorage.getItem('willCreated') === 'true';
   });
 
+  // Initialize emailjs and handle authentication
   useEffect(() => {
+    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
     const getSession = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error || !session) {
@@ -74,24 +86,41 @@ const Dashboard = () => {
     return () => subscription?.unsubscribe();
   }, [navigate]);
 
-  // Load files when user is authenticated
+  // Load data when user is authenticated
   useEffect(() => {
     if (user?.id) {
       loadFiles();
+      loadPendingApprovals();
     }
   }, [user]);
 
-  // Calendly integration
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://assets.calendly.com/assets/external/widget.js';
-    script.async = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
 
+
+
+
+  // Load pending approvals
+  const loadPendingApprovals = () => {
+    try {
+      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
+      const currentUserEmail = localStorage.getItem('userEmail');
+      
+      // Filter pending requests for current user
+      const pendingRequests = approvalRequests.filter(
+        req => req.owner_email === currentUserEmail && req.status === 'pending'
+      );
+      
+      setPendingApprovals(pendingRequests);
+    } catch (error) {
+      console.error('Error loading approvals:', error);
+      setError('Error loading approval requests');
+    }
+  };
+  
+
+
+
+
+  // Load user files
   const loadFiles = async () => {
     try {
       const { data: filesList, error: filesError } = await supabase
@@ -123,25 +152,69 @@ const Dashboard = () => {
     }
   };
 
-  const handleSignOut = async () => {
+
+
+  // Handle approval/rejection of access requests
+
+
+
+
+
+
+  const handleApproval = async (requestId, approved) => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      localStorage.removeItem('willCreated');
-      setShowWillBox(false);
-      navigate('/login');
+      const status = approved ? 'approved' : 'rejected';
+      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
+      const requestIndex = approvalRequests.findIndex(req => req.id === requestId);
+      
+      if (requestIndex === -1) {
+        throw new Error('Request not found');
+      }
+  
+      const request = approvalRequests[requestIndex];
+  
+      // Update request status
+      approvalRequests[requestIndex] = {
+        ...request,
+        status,
+        updated_at: new Date().toISOString()
+      };
+  
+      // Save updated requests
+      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
+  
+      // Send approval/rejection email with EmailJS
+      const emailParams = {
+        to_name: request.requester_name,
+        to_email: request.requester_email,
+        pdf_link: approved ? request.file_url : '',
+        access_password: request.password,
+        relationship: request.relationship,
+        type: request.type,
+        sender_email: localStorage.getItem('userEmail'),
+        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      };
+  
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
+  
+      // Update local state
+      setPendingApprovals(prev => prev.filter(req => req.id !== requestId));
+      setSuccess(`Access request ${status} successfully`);
+  
+      // Reload approvals
+      loadPendingApprovals();
     } catch (error) {
-      console.error('Error signing out:', error.message);
-      setError('Error signing out');
+      console.error('Error handling approval:', error);
+      setError(`Failed to ${approved ? 'approve' : 'reject'} request`);
     }
   };
 
-  const handleCreateWill = () => {
-    setShowWillBox(true);
-    localStorage.setItem('willCreated', 'true');
-    navigate('/form'); // Navigate to form while keeping the box visible
-  };
 
+
+
+
+
+  // Handle file upload
   const handleFileChange = async (event) => {
     if (!user?.id) {
       setError('Please log in to upload files');
@@ -159,7 +232,10 @@ const Dashboard = () => {
           continue;
         }
 
-        if (!isValidFileType(file)) {
+        const isValidFormat = [...SUPPORTED_VIDEO_FORMATS, ...SUPPORTED_IMAGE_FORMATS, ...SUPPORTED_DOC_FORMATS]
+          .includes(file.type);
+
+        if (!isValidFormat) {
           setError(`${file.name} has unsupported format`);
           continue;
         }
@@ -168,7 +244,6 @@ const Dashboard = () => {
         const filename = `${timestamp}-${file.name}`;
         const filePath = `${user.id}/${filename}`;
 
-        // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('user-files')
           .upload(filePath, file, {
@@ -182,7 +257,6 @@ const Dashboard = () => {
 
         if (uploadError) throw uploadError;
 
-        // Create database record
         const { error: dbError } = await supabase
           .from('user_files')
           .insert({
@@ -196,7 +270,8 @@ const Dashboard = () => {
 
         if (dbError) throw dbError;
 
-        await loadFiles(); // Reload the files list
+        await loadFiles();
+        setSuccess('File uploaded successfully');
       } catch (error) {
         console.error('Upload error:', error);
         setError(`Error uploading ${file.name}`);
@@ -207,6 +282,7 @@ const Dashboard = () => {
     setShowUploadModal(false);
   };
 
+  // Handle file deletion
   const handleDeleteFile = async (fileId) => {
     if (!user?.id || !window.confirm('Are you sure you want to delete this file?')) return;
 
@@ -214,14 +290,12 @@ const Dashboard = () => {
       const fileToDelete = uploadedFiles.find(f => f.id === fileId);
       if (!fileToDelete) return;
 
-      // Delete from Storage
       const { error: storageError } = await supabase.storage
         .from('user-files')
         .remove([`${user.id}/${fileToDelete.filename}`]);
 
       if (storageError) throw storageError;
 
-      // Delete from database
       const { error: dbError } = await supabase
         .from('user_files')
         .delete()
@@ -230,12 +304,14 @@ const Dashboard = () => {
       if (dbError) throw dbError;
 
       setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
+      setSuccess('File deleted successfully');
     } catch (error) {
       console.error('Delete error:', error);
       setError('Error deleting file');
     }
   };
 
+  // Handle file download
   const handleDownload = async (file) => {
     try {
       const { data, error } = await supabase.storage
@@ -258,6 +334,28 @@ const Dashboard = () => {
     }
   };
 
+  // Handle sign out
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      localStorage.removeItem('willCreated');
+      setShowWillBox(false);
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      setError('Error signing out');
+    }
+  };
+
+  // Handle will creation
+  const handleCreateWill = () => {
+    setShowWillBox(true);
+    localStorage.setItem('willCreated', 'true');
+    navigate('/form');
+  };
+
+  // Format file size helper
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -266,18 +364,7 @@ const Dashboard = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const isValidFileType = (file) => {
-    return [...SUPPORTED_VIDEO_FORMATS, ...SUPPORTED_IMAGE_FORMATS, ...SUPPORTED_DOC_FORMATS].includes(file.type);
-  };
-
-  const openCalendly = () => {
-    if (window.Calendly) {
-      window.Calendly.initPopupWidget({
-        url: 'https://calendly.com/manat-brainquest/30min'
-      });
-    }
-  };
-
+  // Upload Modal Component
   const UploadModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -336,6 +423,84 @@ const Dashboard = () => {
     </div>
   );
 
+  // Approvals Modal Component
+
+
+  const ApprovalsModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold">Pending Access Requests</h2>
+          <button 
+            onClick={() => setShowApprovalsModal(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+  
+        {pendingApprovals.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No pending access requests
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pendingApprovals.map(request => (
+              <div key={request.id} className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-medium">{request.requester_name}</p>
+                    <p className="text-sm text-gray-600">{request.requester_email}</p>
+                    <p className="text-sm text-gray-600">
+                      Document: {request.file_name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Requested: {new Date(request.created_at).toLocaleString()}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Type: {request.relationship}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApproval(request.id, true)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-600 rounded-md hover:bg-green-200"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleApproval(request.id, false)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-600 rounded-md hover:bg-red-200"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+  
+        {error && (
+          <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+        
+        {success && (
+          <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-lg">
+            {success}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+ 
+
+
+  // Document Preview Component
   const DocumentPreview = () => {
     if (uploadedFiles.length === 0) {
       return (
@@ -372,22 +537,17 @@ const Dashboard = () => {
             </div>
             
             <div className="text-sm text-gray-500 mb-2">
-              Uploaded: {new Date(file.created_at).toLocaleDateString()}
+              Size: {formatFileSize(file.file_size)}
             </div>
 
             {file.file_type.startsWith('video/') ? (
-              <div>
-                <video 
-                  controls 
-                  className="w-full h-32 object-cover rounded my-2"
-                  src={file.url}
-                >
-                  Your browser does not support the video tag.
-                </video>
-                <p className="text-sm text-gray-500">
-                  Size: {formatFileSize(file.file_size)}
-                </p>
-              </div>
+              <video 
+                controls 
+                className="w-full h-32 object-cover rounded my-2"
+                src={file.url}
+              >
+                Your browser does not support the video tag.
+              </video>
             ) : file.file_type.startsWith('image/') && (
               <img 
                 src={file.url}
@@ -411,6 +571,7 @@ const Dashboard = () => {
     );
   };
 
+  // Main Dashboard Return
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -423,6 +584,19 @@ const Dashboard = () => {
           )}
         </div>
         <div className="flex gap-4">
+          <button
+            onClick={() => setShowApprovalsModal(true)}
+            className="relative flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            <Bell className="w-5 h-5" />
+            Approvals
+            {pendingApprovals.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {pendingApprovals.length}
+              </span>
+            )}
+          </button>
+
           {!showWillBox && (
             <button
               onClick={handleCreateWill}
@@ -443,7 +617,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Will Box - Shows after creating will */}
+      {/* Will Box */}
       {showWillBox && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
@@ -464,7 +638,7 @@ const Dashboard = () => {
               </button>
 
               <button
-                onClick={() => { location.href="/form" }}
+                onClick={() => { window.location.href="/form" }}
                 className="flex items-center gap-1 px-3 py-1.5 text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200"
               >
                 <Edit2 className="w-4 h-4" />
@@ -485,7 +659,9 @@ const Dashboard = () => {
               </button>
 
               <button
-                onClick={openCalendly}
+                onClick={() => window.Calendly?.initPopupWidget({
+                  url: 'https://calendly.com/manat-brainquest/30min'
+                })}
                 className="flex items-center gap-1 px-3 py-1.5 text-purple-600 bg-purple-100 rounded-md hover:bg-purple-200"
               >
                 <Calendar className="w-4 h-4" />
@@ -513,10 +689,24 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Upload Modal */}
+      {/* Modals */}
       {showUploadModal && <UploadModal />}
+      {showApprovalsModal && <ApprovalsModal />}
+
+      {/* Global Notifications */}
+      {error && !showUploadModal && !showApprovalsModal && (
+        <div className="fixed bottom-4 right-4 bg-red-100 text-red-700 px-4 py-2 rounded-lg shadow-lg">
+          {error}
+        </div>
+      )}
+      
+      {success && !showUploadModal && !showApprovalsModal && (
+        <div className="fixed bottom-4 right-4 bg-green-100 text-green-700 px-4 py-2 rounded-lg shadow-lg">
+          {success}
+        </div>
+      )}
     </div>
   );
 };
 
-export default Dashboard;
+export default Dashboard
