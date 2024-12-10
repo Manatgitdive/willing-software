@@ -27,10 +27,10 @@ import {
 
 // Constants
 const EMAILJS_CONFIG = {
-  SERVICE_ID: 'service_s8qmko3',
-  TEMPLATE_ID: 'template_ibd242i',
+  SERVICE_ID: 'service_rz8i1qa',
+  TEMPLATE_ID: 'template_ku8n71h',
   APPROVAL_TEMPLATE_ID: 'template_approval',
-  PUBLIC_KEY: '2UzhaCo_sNXTplzST'
+  PUBLIC_KEY: 'hqe1Btv4SckDLaSAf'
 };
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
@@ -47,6 +47,7 @@ const SUPPORTED_DOC_FORMATS = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ];
 
+// Component definition
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -61,7 +62,7 @@ const Dashboard = () => {
     return localStorage.getItem('willCreated') === 'true';
   });
 
-  // Initialize emailjs and handle authentication
+  // Initialize emailjs
   useEffect(() => {
     emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
     const getSession = async () => {
@@ -94,28 +95,63 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  // Add Calendly script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://assets.calendly.com/assets/external/widget.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      const calendlyScript = document.querySelector('script[src="https://assets.calendly.com/assets/external/widget.js"]');
+      if (calendlyScript) {
+        document.body.removeChild(calendlyScript);
+      }
+    };
+  }, []);
+
+  const handleScheduleMeeting = () => {
+    if (typeof window !== 'undefined' && window.Calendly) {
+      window.Calendly.initPopupWidget({
+        url: 'https://calendly.com/manat-brainquest/30min'
+      });
+    } else {
+      setError('Calendly is not loaded yet. Please try again in a moment.');
+    }
+  };
 
 
 
+
+  
 
   // Load pending approvals
   const loadPendingApprovals = () => {
     try {
-      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
-      const currentUserEmail = localStorage.getItem('userEmail');
-      
-      // Filter pending requests for current user
-      const pendingRequests = approvalRequests.filter(
-        req => req.owner_email === currentUserEmail && req.status === 'pending'
-      );
-      
+      const keys = Object.keys(localStorage);
+      const pendingRequests = [];
+  
+      keys.forEach(key => {
+        if (key.startsWith('share_request_')) {
+          const requestData = JSON.parse(localStorage.getItem(key));
+          
+          if (requestData.status === 'pending' && 
+              requestData.owner_email === localStorage.getItem('userEmail')) {
+            pendingRequests.push(requestData);
+          }
+        }
+      });
+  
+      pendingRequests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setPendingApprovals(pendingRequests);
     } catch (error) {
       console.error('Error loading approvals:', error);
       setError('Error loading approval requests');
     }
   };
-  
+
+
+
 
 
 
@@ -152,67 +188,43 @@ const Dashboard = () => {
     }
   };
 
-
-
-  // Handle approval/rejection of access requests
-
-
-
-
-
-
+  // Handle approval/rejection
   const handleApproval = async (requestId, approved) => {
     try {
-      const status = approved ? 'approved' : 'rejected';
-      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
-      const requestIndex = approvalRequests.findIndex(req => req.id === requestId);
+      const requestKey = `share_request_${requestId}`;
+      const requestData = localStorage.getItem(requestKey);
       
-      if (requestIndex === -1) {
+      if (!requestData) {
         throw new Error('Request not found');
       }
   
-      const request = approvalRequests[requestIndex];
+      const request = JSON.parse(requestData);
+      request.status = approved ? 'approved' : 'rejected';
+      request.updated_at = new Date().toISOString();
+      
+      localStorage.setItem(requestKey, JSON.stringify(request));
   
-      // Update request status
-      approvalRequests[requestIndex] = {
-        ...request,
-        status,
-        updated_at: new Date().toISOString()
-      };
+      await emailjs.send(
+        EMAILJS_CONFIG.SERVICE_ID,
+        EMAILJS_CONFIG.APPROVAL_TEMPLATE_ID,
+        {
+          to_email: request.requester_email,
+          to_name: request.requester_name,
+          pdf_link: request.file_url,
+          access_password: request.password,
+          status: request.status,
+          sender_email: user.email,
+          document_name: request.file_name
+        }
+      );
   
-      // Save updated requests
-      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
-  
-      // Send approval/rejection email with EmailJS
-      const emailParams = {
-        to_name: request.requester_name,
-        to_email: request.requester_email,
-        pdf_link: approved ? request.file_url : '',
-        access_password: request.password,
-        relationship: request.relationship,
-        type: request.type,
-        sender_email: localStorage.getItem('userEmail'),
-        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
-      };
-  
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
-  
-      // Update local state
-      setPendingApprovals(prev => prev.filter(req => req.id !== requestId));
-      setSuccess(`Access request ${status} successfully`);
-  
-      // Reload approvals
       loadPendingApprovals();
+      setSuccess(`Access request ${approved ? 'approved' : 'rejected'} successfully`);
     } catch (error) {
-      console.error('Error handling approval:', error);
+      console.error('Approval error:', error);
       setError(`Failed to ${approved ? 'approve' : 'reject'} request`);
     }
   };
-
-
-
-
-
 
   // Handle file upload
   const handleFileChange = async (event) => {
@@ -424,8 +436,6 @@ const Dashboard = () => {
   );
 
   // Approvals Modal Component
-
-
   const ApprovalsModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
@@ -497,8 +507,6 @@ const Dashboard = () => {
       </div>
     </div>
   );
- 
-
 
   // Document Preview Component
   const DocumentPreview = () => {
@@ -659,9 +667,7 @@ const Dashboard = () => {
               </button>
 
               <button
-                onClick={() => window.Calendly?.initPopupWidget({
-                  url: 'https://calendly.com/manat-brainquest/30min'
-                })}
+                onClick={handleScheduleMeeting}
                 className="flex items-center gap-1 px-3 py-1.5 text-purple-600 bg-purple-100 rounded-md hover:bg-purple-200"
               >
                 <Calendar className="w-4 h-4" />
@@ -709,4 +715,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard
+export default Dashboard;

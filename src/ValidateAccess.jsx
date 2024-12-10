@@ -16,45 +16,41 @@ const ValidateAccess = () => {
     handleAccess();
   }, []);
 
+
+
+
   const handleAccess = () => {
     try {
-      // Get all required parameters from URL
-      const requestId = searchParams.get('request');
-      const fileUrl = searchParams.get('url');
-      const requesterEmail = searchParams.get('email');
-      const fileName = searchParams.get('fileName');
+      const requestId = searchParams.get('id');
       
-      if (!requestId || !fileUrl || !requesterEmail) {
+      if (!requestId) {
         setStatus('error');
-        setMessage('Invalid access link. Missing required parameters.');
+        setMessage('Invalid access link. Please check the URL.');
         return;
       }
-
-      // Check for existing request
-      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
-      let existingRequest = approvalRequests.find(r => r.id === requestId);
-
-      if (!existingRequest) {
-        // Create new request with URL parameters
+  
+      // Try to get request data
+      const requestData = localStorage.getItem(`share_request_${requestId}`);
+      
+      if (!requestData) {
+        // If no data exists, create new request
         const newRequest = {
           id: requestId,
           created_at: new Date().toISOString(),
-          requester_email: requesterEmail,
-          file_url: fileUrl,
-          file_name: fileName || 'Document',
-          status: 'pending',
-          password: searchParams.get('password')
+          status: 'pending'
         };
-
-        approvalRequests.push(newRequest);
-        localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
-        existingRequest = newRequest;
+        localStorage.setItem(`share_request_${requestId}`, JSON.stringify(newRequest));
+        setDocumentInfo(newRequest);
+        setStatus('pending');
+        setMessage('Your access request is pending approval.');
+        return;
       }
-
-      setDocumentInfo(existingRequest);
-
-      // Handle request status
-      switch (existingRequest.status) {
+  
+      const request = JSON.parse(requestData);
+      setDocumentInfo(request);
+  
+      // Check status
+      switch (request.status) {
         case 'approved':
           setStatus('approved');
           setMessage('Access approved! Please enter your password.');
@@ -65,19 +61,25 @@ const ValidateAccess = () => {
           setMessage('Your access request has been denied. Please contact the document owner.');
           break;
         case 'pending':
+        default:
           setStatus('pending');
           setMessage('Your access request is pending approval. You will receive an email once approved.');
           break;
-        default:
-          setStatus('error');
-          setMessage('Invalid request status');
       }
     } catch (error) {
-      console.error('Error handling access:', error);
+      console.error('Access error:', error);
       setStatus('error');
-      setMessage('Error checking access status. Please try again.');
+      setMessage('Error checking access. Please try again.');
     }
   };
+
+
+
+
+
+
+
+
 
   const handlePasswordSubmit = (e) => {
     e.preventDefault();

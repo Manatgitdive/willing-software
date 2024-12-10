@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Lock, Mail, Clock, CheckCircle, Upload, AlertCircle, X, Trash2 } from 'lucide-react';
 import emailjs from '@emailjs/browser';
   
-const EMAILJS_SERVICE_ID = 'service_s8qmko3';
-const EMAILJS_TEMPLATE_ID = 'template_ibd242i';
-const EMAILJS_PUBLIC_KEY = '2UzhaCo_sNXTplzST';
+const EMAILJS_SERVICE_ID = 'service_rz8i1qa';
+const EMAILJS_TEMPLATE_ID = 'template_ku8n71h';
+const EMAILJS_PUBLIC_KEY = 'hqe1Btv4SckDLaSAf';
 const API_URL = 'http://localhost:8080';
 
 export default function ShareWill() {
@@ -150,20 +150,31 @@ export default function ShareWill() {
 
 
 
-
   const sendEmailToBeneficiary = async (beneficiary, uploadResponse) => {
     try {
-      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+      // Create a unique key that includes timestamp and email for consistency
+      const requestId = `share_${Date.now()}_${beneficiary.email.replace('@', '_')}`;
       
-      // Include all necessary data in the URL with proper encoding
-      const accessUrl = `${window.location.origin}/validate-access?` + 
-        `request=${requestId}&` + 
-        `url=${encodeURIComponent(uploadResponse.cloudFrontUrl)}&` + 
-        `email=${encodeURIComponent(beneficiary.email)}&` +
-        `fileName=${encodeURIComponent(selectedFile.name)}&` +
-        `password=${encodeURIComponent(beneficiary.password)}`;
+      // Store in a shared format
+      const sharedData = {
+        id: requestId,
+        created_at: new Date().toISOString(),
+        requester_email: beneficiary.email,
+        requester_name: beneficiary.fullName,
+        file_url: uploadResponse.cloudFrontUrl,
+        file_name: selectedFile.name,
+        file_type: selectedFile.type,
+        status: 'pending',
+        password: beneficiary.password,
+        owner_email: localStorage.getItem('userEmail')
+      };
   
-      // Create email parameters
+      // Store in localStorage with the shared key
+      localStorage.setItem(`share_request_${requestId}`, JSON.stringify(sharedData));
+  
+      // Create a simple access URL
+      const accessUrl = `${window.location.origin}/validate-access?id=${encodeURIComponent(requestId)}`;
+      
       const emailParams = {
         enduser_email: beneficiary.email,
         to_email: beneficiary.email,
@@ -176,40 +187,14 @@ export default function ShareWill() {
         expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
       };
   
-      // Save request on sender's device
-      const approvalRequests = JSON.parse(localStorage.getItem('approvalRequests') || '[]');
-      approvalRequests.push({
-        id: requestId,
-        created_at: new Date().toISOString(),
-        requester_email: beneficiary.email,
-        requester_name: beneficiary.fullName,
-        file_url: uploadResponse.cloudFrontUrl,
-        file_name: selectedFile.name,
-        file_type: selectedFile.type,
-        status: 'pending',
-        password: beneficiary.password,
-        relationship: beneficiary.relationship,
-        type: beneficiary.type,
-        owner_email: localStorage.getItem('userEmail')
-      });
-      localStorage.setItem('approvalRequests', JSON.stringify(approvalRequests));
-  
-      // Send email
-      const result = await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        emailParams
-      );
-  
-      console.log('Email sent successfully:', result);
+      const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
+      console.log('Email sent:', result);
       return { success: true, email: beneficiary.email };
     } catch (error) {
-      console.error(`Failed to send email to ${beneficiary.email}:`, error);
+      console.error('Share error:', error);
       return { success: false, email: beneficiary.email, error };
     }
   };
-
-
 
 
 
